@@ -1,0 +1,18 @@
+{
+  "country": "India",
+  "prototypeNotice": "Tamil Nadu pilot configuration. Add states and districts here without changing application code.",
+  "states": [
+    {
+      "name": "Tamil Nadu",
+      "code": "TN",
+      "districts": [
+        {"name":"Chennai","city":"Chennai","latitude":13.0827,"longitude":80.2707},
+        {"name":"Coimbatore","city":"Coimbatore","latitude":11.0168,"longitude":76.9558},
+        {"name":"Madurai","city":"Madurai","latitude":9.9252,"longitude":78.1198},
+        {"name":"Tiruchirappalli","city":"Tiruchirappalli","latitude":10.7905,"longitude":78.7047},
+        {"name":"Salem","city":"Salem","latitude":11.6643,"longitude":78.146},
+        {"name":"Dharmapuri","city":"Dharmapuri","latitude":12.1211,"longitude":78.1582}
+      ]
+    }
+  ]
+}

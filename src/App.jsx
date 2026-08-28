@@ -842,15 +842,17 @@ export default function App() {
   const [detailCourse, setDetailCourse] = useState(null);
   const [savedRecords, setSavedRecords] = useState([]);
   const [activeRecordId, setActiveRecordId] = useState(null);
+  const activeRecordIdRef = useRef(null);
   const geminiVoiceRef = useRef(null);
   const t = copy[language.key];
   const selectedCourse = ranked.find(c => c.id === selected);
 
   useEffect(()=>{ setSavedRecords(loadSavedProfiles(currentUser?.id)); },[currentUser]);
 
+  const assignActiveRecord = useCallback(id => { activeRecordIdRef.current=id; setActiveRecordId(id); },[]);
   const persistProfile = useCallback((profileValue, extra = {}) => {
-    const id = extra.id || activeRecordId || globalThis.crypto?.randomUUID?.() || `SG-${Date.now()}`;
-    setActiveRecordId(id);
+    const id = extra.id || activeRecordIdRef.current || globalThis.crypto?.randomUUID?.() || `SG-${Date.now()}`;
+    assignActiveRecord(id);
     setSavedRecords(previous => {
       const existing = previous.find(item => item.id === id) || {};
       const record = {...existing,id,profile:profileValue,language:language.key,status:extra.status||existing.status||'profile',selected:extra.selected??existing.selected??'',reference:extra.reference??existing.reference??'',updatedAt:new Date().toISOString()};
@@ -859,7 +861,12 @@ export default function App() {
       return next;
     });
     return id;
-  }, [activeRecordId, currentUser, language.key]);
+  }, [assignActiveRecord, currentUser, language.key]);
+  useEffect(()=>{
+    if(!currentUser?.id || !['live','form'].includes(stage) || !Object.values(profile).some(Boolean))return;
+    const timer=setTimeout(()=>persistProfile(profile,{status:'draft'}),350);
+    return()=>clearTimeout(timer);
+  },[currentUser,stage,profile,persistProfile]);
   const finishInterview = useCallback(updated => { setProfile(updated); setStage('summary'); }, []);
   const confirmProfile = useCallback(updated => { setProfile(updated); persistProfile(updated,{status:'profile'}); setStage('profile'); }, [persistProfile]);
   const analyseProfile = useCallback(() => {
@@ -888,7 +895,7 @@ export default function App() {
     setSubmitting(true);
     let ref;
     try {
-      const response = await fetch('/api/applications', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...profile, selectedCourse: selected, language: language.key }) });
+      const response = await fetch('/api/applications', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...profile, accountId: currentUser.id, selectedCourse: selected, language: language.key }) });
       if (!response.ok) throw new Error('offline');
       ref = (await response.json()).reference;
     } catch {
@@ -897,9 +904,9 @@ export default function App() {
     }
     setReference(ref); persistProfile(profile,{status:'submitted',selected,reference:ref}); setSubmitting(false); setStage('success');
   };
-  const openSavedProfile = record => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current=null; setActiveRecordId(record.id); setProfile(record.profile); const result=recommendPathways(record.profile,3); setRanked(result); setSelected(record.selected||result[0]?.id||''); setDetailCourse(null); setReference(record.reference||''); setView('home'); setStage('profile'); };
-  const removeSavedProfile = id => setSavedRecords(previous => { const next=previous.filter(item=>item.id!==id); if(currentUser?.id)localStorage.setItem(savedProfilesKey(currentUser.id),JSON.stringify(next)); if(activeRecordId===id)setActiveRecordId(null); return next; });
-  const reset = () => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current = null; setActiveRecordId(null); setProfile({}); setRanked([]); setSelected(''); setDetailCourse(null); setReference(''); setStage('landing'); setView('home'); };
+  const openSavedProfile = record => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current=null; assignActiveRecord(record.id); setProfile(record.profile); const result=recommendPathways(record.profile,3); setRanked(result); setSelected(record.selected||result[0]?.id||''); setDetailCourse(null); setReference(record.reference||''); setView('home'); setStage(record.status==='draft'?'form':'profile'); };
+  const removeSavedProfile = id => setSavedRecords(previous => { const next=previous.filter(item=>item.id!==id); if(currentUser?.id)localStorage.setItem(savedProfilesKey(currentUser.id),JSON.stringify(next)); if(activeRecordId===id)assignActiveRecord(null); return next; });
+  const reset = () => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current = null; assignActiveRecord(null); setProfile({}); setRanked([]); setSelected(''); setDetailCourse(null); setReference(''); setStage('landing'); setView('home'); };
   const authenticate=user=>{sessionStorage.setItem(SESSION_KEY,JSON.stringify(user));setCurrentUser(user)};
   const logout=()=>{reset();sessionStorage.removeItem(SESSION_KEY);setSavedRecords([]);setCurrentUser(null)};
 
@@ -908,7 +915,7 @@ export default function App() {
   return <div className="app-shell">
     <div className="ambient ambient-one"/><div className="ambient ambient-two"/><div className="grid-bg"/>
     {stage !== 'interview' && stage !== 'live' && <Header t={t} view={view} setView={setView} compact={stage !== 'landing'} user={currentUser} onLogout={logout}/>} 
-    {liveStarted && <div className={stage === 'live' ? 'live-session-visible' : 'live-session-hidden'}><GeminiLive language={language} profile={profile} setProfile={setProfile} onComplete={confirmProfile} onExit={() => { setLiveStarted(false); setStage('landing'); }} credential={sessionCredential} active={stage === 'live'} onVoiceReady={registerGeminiVoice}/></div>}
+    {liveStarted && <div className={stage === 'live' ? 'live-session-visible' : 'live-session-hidden'}><GeminiLive language={language} profile={profile} setProfile={setProfile} onComplete={confirmProfile} onExit={() => { setLiveStarted(false); setStage('landing'); }} onFallback={() => { setLiveStarted(false); setStage('form'); }} credential={sessionCredential} active={stage === 'live'} onVoiceReady={registerGeminiVoice}/></div>}
     {view === 'dashboard' ? <CounsellorAdmin profile={profile} ranked={ranked} reference={reference} onBack={() => setView('home')}/> : <>
       {stage === 'landing' && <Landing language={language} setLanguage={setLanguage} onStart={startLive} onForm={() => setStage('form')} onSaved={() => setStage('saved')} onBack={logout} savedCount={savedRecords.length} t={t}/>} 
       {stage === 'saved' && <SavedProfiles records={savedRecords} onOpen={openSavedProfile} onBack={() => setStage('landing')} onRemove={removeSavedProfile}/>} 

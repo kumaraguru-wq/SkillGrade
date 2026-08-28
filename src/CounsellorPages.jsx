@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, BarChart3, BriefcaseBusiness, CheckCircle2, Clock3, GraduationCap, LocateFixed, MapPin, Mic, Route, Sparkles, Volume2 } from 'lucide-react';
 import { opportunities, qualifications, trainingCentres } from './recommendationEngine';
-import { districtLocations, nearestPilotDistrict } from './location';
+import { districtLocations, nearestPilotDistrict, supportedDistricts } from './location';
 
 const fieldMeta = [
   ['name','Full name','text'], ['age','Age','number'], ['city','City / town','text'], ['district','District','select'], ['pincode','Pincode','text'],
@@ -11,7 +11,7 @@ const fieldMeta = [
   ['preferredField','Preferred field','text'], ['employmentPreference','Livelihood preference','preference'],
   ['willingToRelocate','Travel / relocation','relocation'], ['mobilityConstraints','Mobility constraints','text'],
 ];
-const districts = ['Chennai','Coimbatore','Madurai','Tiruchirappalli','Salem','Dharmapuri'];
+const districts = supportedDistricts.map(item=>item.name);
 const education = [['none','No formal schooling'],['class5','Class 5'],['class8','Class 8'],['class10','Class 10'],['class12','Class 12'],['iti','ITI'],['diploma','Diploma'],['graduate','Graduate']];
 const labels = Object.fromEntries(fieldMeta.map(([id,label]) => [id,label]));
 

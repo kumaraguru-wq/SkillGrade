@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { GoogleGenAI, Modality, Type } from '@google/genai';
 import { ArrowLeft, Check, CircleStop, Mic, MicOff, RefreshCcw, ShieldCheck, Sparkles, Volume2, X } from 'lucide-react';
 import { LiveAudioPlayer, LiveMicrophone, bytesToBase64 } from './liveAudio';
+import { supportedDistricts } from './location';
+
+const districtNames=supportedDistricts.map(item=>item.name);
 
 const REQUIRED_FIELDS = ['consent', 'name', 'age', 'district', 'education', 'currentOccupation', 'yearsExperience', 'skills', 'familyOccupation', 'interests', 'preferredField', 'employmentPreference', 'willingToRelocate', 'mobilityConstraints'];
 
@@ -17,7 +20,7 @@ const declarations = [
         consent: { type: Type.STRING, description: 'yes only after the beneficiary consents' },
         name: { type: Type.STRING },
         age: { type: Type.STRING },
-        district: { type: Type.STRING, enum: ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Dharmapuri'] },
+        district: { type: Type.STRING, enum: districtNames },
         education: { type: Type.STRING, enum: ['none', 'class5', 'class8', 'class10', 'class12', 'iti', 'diploma', 'graduate'] },
         currentOccupation: { type: Type.STRING },
         yearsExperience: { type: Type.STRING, description: 'Numeric years, including zero' },
@@ -43,7 +46,7 @@ function systemInstruction(language) {
 
 Conduct a natural spoken conversation in ${languageNames[language.key]}. In Tamil, understand and naturally use common Tanglish and English work words such as coding, computer, tailoring and business. Never sound like a questionnaire or announce field names.
 
-You are a livelihood counsellor, not a form filler. Learn the beneficiary's consent, full name, age, district, education, current occupation, years of experience, existing skills, family or traditional occupation, interests, preferred livelihood field, preference for a salaried job, self-employment or both, willingness to travel or relocate, and any mobility constraints.
+You are a livelihood counsellor, not a form filler. Learn the beneficiary's consent, full name, age, district (currently supported pilot districts: ${districtNames.join(', ')}), education, current occupation, years of experience, existing skills, family or traditional occupation, interests, preferred livelihood field, preference for a salaried job, self-employment or both, willingness to travel or relocate, and any mobility constraints.
 
 Conversation rules:
 - Begin with a short friendly welcome, explain that you will have a brief conversation, and ask for consent.
@@ -69,7 +72,7 @@ function GeminiOrb({ status }) {
   </div>;
 }
 
-export default function GeminiLive({ language, profile, setProfile, onComplete, onExit, credential, active = true, onVoiceReady }) {
+export default function GeminiLive({ language, profile, setProfile, onComplete, onExit, onFallback, credential, active = true, onVoiceReady }) {
   const [status, setStatus] = useState('connecting');
   const [error, setError] = useState('');
   const [userCaption, setUserCaption] = useState('');
@@ -262,7 +265,7 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
         {userCaption && <div className="caption user-caption"><span>YOU</span><p>{userCaption}</p></div>}
       </div>
 
-      {error && <div className="live-error"><b>Voice session interrupted</b><p>{error}</p><button onClick={() => setRetry(value => value + 1)}><RefreshCcw size={16}/>Reconnect</button></div>}
+      {error && <div className="live-error"><b>Voice session interrupted</b><p>{error} Your answers so far were saved as a draft.</p><div className="live-error-actions"><button onClick={() => setRetry(value => value + 1)}><RefreshCcw size={16}/>Reconnect</button><button onClick={onFallback}><ArrowLeft size={16}/>Continue with offline form</button></div></div>}
 
       <div className="live-controls">
         <button className={muted ? 'muted' : ''} onClick={() => setMuted(value => !value)}>{muted ? <MicOff size={21}/> : <Mic size={21}/>}<span>{muted ? 'Unmute' : 'Mute'}</span></button>

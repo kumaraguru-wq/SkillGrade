@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import json
 import os
+import hashlib
+import sqlite3
 from pathlib import Path
 from secrets import randbelow
 from typing import Literal
@@ -17,22 +19,26 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+LOCATION_CONFIG = json.loads((ROOT_DIR / "shared" / "locations.json").read_text(encoding="utf-8"))
+SUPPORTED_DISTRICTS = {district["name"] for state in LOCATION_CONFIG["states"] for district in state["districts"]}
+DATABASE_PATH = Path(os.getenv("SKILLGRADE_DB_PATH", str(ROOT_DIR / "backend" / "data" / "skillgrade.db")))
+
+
 class Application(BaseModel):
-    name: str = Field(min_length=2, max_length=100)
-    age: str
-    gender: str
-    phone: str = Field(min_length=10, max_length=15)
-    district: Literal[
-        "Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Salem", "Dharmapuri"
-    ]
-    block: str
-    village: str
-    education: str
-    skill: str
-    goal: Literal["income", "job", "self"]
-    consent: str
-    selectedCourse: str
-    language: Literal["en", "hi", "ta"]
+    accountId: str = Field(default="anonymous", max_length=100)
+    age: str = ""
+    district: str
+    state: str = "Tamil Nadu"
+    education: str = ""
+    currentOccupation: str = ""
+    yearsExperience: str = "0"
+    skills: str = ""
+    interests: str = ""
+    employmentPreference: str = "both"
+    willingToRelocate: str = "limited"
+    selectedCourse: str = ""
+    language: Literal["en", "hi", "ta"] = "en"
 
 
 class SpeechRequest(BaseModel):
@@ -48,11 +54,26 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if origin.strip()],
+    allow_origin_regex=os.getenv("ALLOWED_ORIGIN_REGEX", r"^https?://(?:(?:localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(?::\d+)?|[a-z0-9-]+\.onrender\.com)$"),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def init_database() -> None:
+    DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.execute("""CREATE TABLE IF NOT EXISTS applications (
+            reference TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, account_hash TEXT NOT NULL,
+            age_band TEXT, district TEXT NOT NULL, state TEXT NOT NULL, education TEXT,
+            occupation TEXT, experience_years REAL, skills TEXT, interests TEXT,
+            employment_preference TEXT, mobility TEXT, selected_course TEXT, language TEXT, status TEXT NOT NULL
+        )""")
+
+
+init_database()
 
 
 @app.get("/api/health")
@@ -93,19 +114,38 @@ def create_gemini_live_token() -> dict[str, str]:
 
 @app.post("/api/applications", status_code=201)
 def create_application(application: Application) -> dict[str, str]:
-    """Validate a demo application and return a non-identifying reference.
-
-    The prototype intentionally does not persist personal information. Replace this
-    adapter with the approved government API when an integration is available.
-    """
+    """Persist a non-identifying funnel record and return its reference."""
+    if application.district not in SUPPORTED_DISTRICTS:
+        raise HTTPException(status_code=422, detail="District is not enabled in the shared pilot configuration")
     now = datetime.now(timezone.utc)
     reference = f"TNS-{now.year}-{randbelow(900000) + 100000}"
+    age = int(application.age) if str(application.age).isdigit() else 0
+    age_band = "unknown" if not age else "18-24" if age < 25 else "25-34" if age < 35 else "35-44" if age < 45 else "45+"
+    account_hash = hashlib.sha256(application.accountId.strip().lower().encode("utf-8")).hexdigest()
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        connection.execute("""INSERT INTO applications
+            (reference,submitted_at,account_hash,age_band,district,state,education,occupation,experience_years,skills,interests,employment_preference,mobility,selected_course,language,status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
+            reference,now.isoformat(),account_hash,age_band,application.district,application.state,application.education,
+            application.currentOccupation,float(application.yearsExperience or 0),application.skills,application.interests,
+            application.employmentPreference,application.willingToRelocate,application.selectedCourse,application.language,"received"
+        ))
     return {
         "reference": reference,
         "status": "received",
         "submittedAt": now.isoformat(),
         "course": application.selectedCourse,
     }
+
+
+@app.get("/api/applications/stats")
+def application_stats() -> dict:
+    """Return aggregate prototype funnel statistics without personal records."""
+    with sqlite3.connect(DATABASE_PATH) as connection:
+        total = connection.execute("SELECT COUNT(*) FROM applications").fetchone()[0]
+        districts = dict(connection.execute("SELECT district, COUNT(*) FROM applications GROUP BY district").fetchall())
+        pathways = dict(connection.execute("SELECT selected_course, COUNT(*) FROM applications WHERE selected_course != '' GROUP BY selected_course").fetchall())
+    return {"total": total, "byDistrict": districts, "byPathway": pathways, "dataPolicy": "Non-identifying prototype funnel records"}
 
 
 @app.post("/api/speech")

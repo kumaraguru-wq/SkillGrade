@@ -1,46 +1,64 @@
-# SkillCube Live
+# SkillGrade
 
-A responsive, real-time AI voice guide for Tamil Nadu livelihood beneficiaries. Gemini Live conducts a natural conversation in English, Hindi, Tamil, or Tanglish; silently fills an application; reads one final summary; accepts spoken corrections; and then produces explainable NSQF course recommendations.
+SkillGrade is a multilingual, voice-first livelihood planning prototype for PM-AJAY beneficiaries. It validates a beneficiary profile, deterministically filters unrelated or ineligible sectors, and combines qualifications, experience, mobility, training availability, demo jobs, market demand and self-employment possibilities.
 
-## Configure
+## Run locally
 
-Create `.env` in the project root. Never expose this value through a `VITE_` variable or commit the file.
+Create a private `.env` file in the project root:
 
 ```env
 GEMINI_API_KEY=your_google_ai_studio_key
 ```
 
-The backend exchanges this permanent secret for a single-use, short-lived token. Only that temporary token reaches the browser.
-
-## Run
+Then run:
 
 ```powershell
 npm.cmd install
-python -m pip install -r backend/requirements.txt
+python -m pip install -r requirements.txt
 npm.cmd run dev
 ```
 
-The development command starts the Vite website and FastAPI service together. Open `http://localhost:5173` in Chrome or Edge and allow microphone access once.
+Open `http://localhost:5173`. For mobile microphone access, deploy behind HTTPS.
 
-For a phone on the same Wi-Fi, use the Wi-Fi address printed by Vite. Microphone access on non-localhost addresses normally requires HTTPS, so deploy both frontend and backend behind HTTPS before sharing a public link.
+## Low-connectivity behaviour
 
-## Live conversation
+- Every partial voice or form answer is saved locally as a resumable account-scoped draft.
+- Saved drafts appear under **Review saved profiles** after login.
+- If Gemini Live disconnects, **Continue with offline form** opens a prefilled text form.
+- Qualification, training-centre, job and demand demo datasets are bundled with the frontend.
+- Live voice still requires connectivity. The production scale path is Bhashini STT/TTS with a short request/response NLP call, plus an offline form/kiosk queue.
 
-- One continuous PCM microphone stream; no repeated mic tapping
-- Gemini server-side voice activity detection with pause tolerance
-- Native audio replies and interruption support
-- Secure token prefetch and parallel audio initialization for a faster first response
-- Input and output live captions
-- Natural Tamil/English code-switching and Tanglish
-- Background tool calls that fill the beneficiary profile
-- Patient, cumulative ten-digit phone-number collection
-- One spoken summary with conversational corrections
-- Automatic handoff to explainable recommendations after final confirmation
-- The same persistent Gemini voice narrates recommendations, review, translation, and submission
+## Data and configuration
 
-## Demo boundaries
+- `shared/locations.json` is the single state/district pilot configuration used by the active frontend and backend.
+- `src/providers/livelihoodDataProvider.js` isolates prototype data from the engine so official NQR/NCVET, training and employment providers can replace it without rewriting matching logic.
+- The catalog is a proof of concept, not the full registry across 40+ Sector Skill Councils.
+- `POST /api/applications` writes a non-identifying funnel record to SQLite. It excludes beneficiary names and stores only a hash of the local account ID.
+- SQLite is suitable for a single prototype instance. A real deployment should use authenticated accounts, PostgreSQL, approved encryption, retention and access policies.
 
-- Course and local-demand information is realistic sample data, not current official availability.
-- Government submission is explicitly simulated.
-- No Aadhaar or identity document is collected.
-- Replace `POST /api/applications` with an authorised government endpoint before production use.
+## Recommendation safeguards
+
+- Education and age eligibility are deterministic.
+- Sector relevance is hard-filtered before scoring.
+- Interest, experience and skills are primary signals.
+- Results below 60% are hidden.
+- Gemini explains and translates; it cannot create eligibility rules, qualifications, jobs, centres or salary claims.
+
+## Deployment configuration
+
+The backend accepts these environment settings:
+
+```env
+GEMINI_API_KEY=...
+ALLOWED_ORIGINS=https://your-frontend.example
+ALLOWED_ORIGIN_REGEX=^https://.*\.your-domain\.example$
+SKILLGRADE_DB_PATH=/persistent/path/skillgrade.db
+```
+
+## Honest prototype boundaries
+
+- Voice depends on Gemini Live and network quality.
+- Catalog, training centres, demand and job rows are explicitly labelled prototype/demo data.
+- No salary increase is guaranteed, and no wage range is displayed without a verified source.
+- Login and resumable drafts are browser-local; cross-device accounts require a secure server identity system.
+- The current pilot configuration covers six Tamil Nadu districts. National expansion is a data/configuration operation, not a matching-engine rewrite.

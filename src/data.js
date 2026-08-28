@@ -1,4 +1,6 @@
-export const districts = ['Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli', 'Salem', 'Dharmapuri'];
+import locationConfig from '../shared/locations.json';
+
+export const districts = locationConfig.states.flatMap(state => state.districts.map(district => district.name));
 
 export const districtDetails = {
   Chennai: { blocks: ['Tondiarpet', 'Alandur', 'Sholinganallur'], demand: ['retail', 'healthcare', 'digital', 'electrical', 'tailoring'] },
