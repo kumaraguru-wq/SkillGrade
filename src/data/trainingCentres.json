@@ -1,0 +1,13 @@
+[
+  {"id":"TC-CHN-01","name":"Chennai Urban Skill Hub","district":"Chennai","sectors":["Electrical","Green Jobs / Solar","IT-ITeS","Retail","Beauty and Wellness"],"locality":"Guindy","distanceKm":7},
+  {"id":"TC-CHN-02","name":"North Chennai Technical Centre","district":"Chennai","sectors":["Automotive","Construction","Plumbing","Capital Goods"],"locality":"Tondiarpet","distanceKm":11},
+  {"id":"TC-CBE-01","name":"Coimbatore Industrial Skill Campus","district":"Coimbatore","sectors":["Electrical","Automotive","Capital Goods","Electronics / IT"],"locality":"Peelamedu","distanceKm":8},
+  {"id":"TC-CBE-02","name":"Kovai Livelihood Training Centre","district":"Coimbatore","sectors":["Apparel","Agriculture","Food Processing","Beauty and Wellness"],"locality":"Gandhipuram","distanceKm":6},
+  {"id":"TC-MDU-01","name":"Madurai District Skill Centre","district":"Madurai","sectors":["Electrical","IT-ITeS","Retail","Beauty and Wellness","Food Processing"],"locality":"Anna Nagar","distanceKm":7},
+  {"id":"TC-MDU-02","name":"Madurai Rural Enterprise Hub","district":"Madurai","sectors":["Agriculture","Apparel","Plumbing","Construction"],"locality":"Thirumangalam","distanceKm":13},
+  {"id":"TC-TRY-01","name":"Tiruchirappalli Technical Training Hub","district":"Tiruchirappalli","sectors":["Electrical","Green Jobs / Solar","Construction","Plumbing","IT-ITeS"],"locality":"Thillai Nagar","distanceKm":6},
+  {"id":"TC-SLM-01","name":"Salem Manufacturing and Skills Centre","district":"Salem","sectors":["Apparel","Capital Goods","Automotive","Electrical","Retail"],"locality":"Suramangalam","distanceKm":8},
+  {"id":"TC-SLM-02","name":"Salem Rural Livelihood Hub","district":"Salem","sectors":["Agriculture","Food Processing","Beauty and Wellness"],"locality":"Omalur","distanceKm":14},
+  {"id":"TC-DPI-01","name":"Dharmapuri Livelihood Resource Centre","district":"Dharmapuri","sectors":["Agriculture","Apparel","Retail","Food Processing"],"locality":"Dharmapuri Town","distanceKm":5},
+  {"id":"TC-DPI-02","name":"Harur Technical Skills Point","district":"Dharmapuri","sectors":["Electrical","Automotive","Construction"],"locality":"Harur","distanceKm":16}
+]

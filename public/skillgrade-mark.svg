@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="SkillGrade SG logo">
+  <defs>
+    <linearGradient id="fire" x1="0" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="#fff1c9"/><stop offset="0.24" stop-color="#ffbd3f"/><stop offset="0.55" stop-color="#ff542f"/><stop offset="1" stop-color="#d90d2d"/></linearGradient>
+    <filter id="redGlow"><feGaussianBlur stdDeviation="10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="blueGlow"><feGaussianBlur stdDeviation="9" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="#020305"/><rect x="10" y="10" width="492" height="492" rx="106" fill="none" stroke="#27303b" stroke-width="12"/>
+  <text x="77" y="343" font-family="Arial Black,Inter,sans-serif" font-size="270" font-weight="900" letter-spacing="-46" fill="url(#fire)" filter="url(#redGlow)">S</text>
+  <text x="244" y="343" font-family="Arial Black,Inter,sans-serif" font-size="270" font-weight="900" letter-spacing="-30" fill="#62c9ff" filter="url(#blueGlow)">G</text>
+</svg>

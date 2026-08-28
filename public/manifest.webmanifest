@@ -1,0 +1,12 @@
+{
+  "name": "SkillGrade Livelihood Guidance",
+  "short_name": "SkillGrade",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090b10",
+  "theme_color": "#090b10",
+  "description": "Multilingual voice-first skill guidance for Tamil Nadu",
+  "icons": [
+    {"src":"/skillgrade-logo.png","sizes":"1024x1024","type":"image/png","purpose":"any maskable"}
+  ]
+}

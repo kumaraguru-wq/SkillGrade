@@ -1,0 +1,17 @@
+[
+  {"district":"Chennai","sector":"IT-ITeS","title":"Entry-level digital operations","type":"job","demand":"high"},
+  {"district":"Chennai","sector":"Electrical","title":"Building maintenance teams","type":"job","demand":"high"},
+  {"district":"Chennai","sector":"Retail","title":"Organised retail hiring","type":"job","demand":"high"},
+  {"district":"Coimbatore","sector":"Capital Goods","title":"Fabrication and manufacturing clusters","type":"job","demand":"high"},
+  {"district":"Coimbatore","sector":"Apparel","title":"Garment production and home units","type":"both","demand":"high"},
+  {"district":"Coimbatore","sector":"Automotive","title":"Workshop and component ecosystem","type":"job","demand":"medium"},
+  {"district":"Madurai","sector":"Food Processing","title":"Local food-product enterprises","type":"self","demand":"high"},
+  {"district":"Madurai","sector":"Retail","title":"Retail and service hiring","type":"job","demand":"medium"},
+  {"district":"Madurai","sector":"Agriculture","title":"Farm services and value addition","type":"both","demand":"high"},
+  {"district":"Tiruchirappalli","sector":"Green Jobs / Solar","title":"Solar installation projects","type":"job","demand":"high"},
+  {"district":"Tiruchirappalli","sector":"Construction","title":"Urban and infrastructure projects","type":"job","demand":"high"},
+  {"district":"Salem","sector":"Apparel","title":"Textile and tailoring demand","type":"both","demand":"high"},
+  {"district":"Salem","sector":"Agriculture","title":"Agri-processing and farm services","type":"both","demand":"medium"},
+  {"district":"Dharmapuri","sector":"Agriculture","title":"Irrigation, dairy and crop enterprises","type":"self","demand":"high"},
+  {"district":"Dharmapuri","sector":"Food Processing","title":"Small food processing units","type":"self","demand":"medium"}
+]

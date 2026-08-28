@@ -1,0 +1,25 @@
+{
+  "name": "skillgrade-voice-guide",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n WEB,VOICE -c blue,magenta \"vite\" \"python -m uvicorn backend.main:app --port 8000\"",
+    "frontend": "vite",
+    "build": "vite build",
+    "test:recommendations": "node scripts/verify-recommendations.mjs",
+    "preview": "vite preview",
+    "backend": "python -m uvicorn backend.main:app --reload --port 8000"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "@google/genai": "latest",
+    "concurrently": "latest",
+    "vite": "latest",
+    "typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {}
+}
