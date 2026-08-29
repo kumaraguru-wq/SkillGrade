@@ -7,7 +7,7 @@ import { supportedDistricts } from './location';
 const districtNames=supportedDistricts.map(item=>item.name);
 
 const REQUIRED_FIELDS = ['consent', 'age', 'district', 'education', 'currentOccupation', 'yearsExperience', 'skills', 'interests', 'preferredField', 'employmentPreference', 'willingToRelocate'];
-const OPTIONAL_FIELDS = ['name', 'familyOccupation', 'mobilityConstraints'];
+const OPTIONAL_FIELDS = ['name', 'familyOccupation', 'mobilityConstraints', 'skillProficiencyBand', 'existingQualification'];
 const COLLECTABLE_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
 const languageNames = { en: 'English', hi: 'Hindi', ta: 'Tamil with natural Tanglish and English code-switching' };
@@ -27,6 +27,8 @@ const declarations = [
         currentOccupation: { type: Type.STRING },
         yearsExperience: { type: Type.STRING, description: 'Numeric years, including zero' },
         skills: { type: Type.STRING, description: 'Specific existing practical skills; preserve coding and other English/Tanglish terms exactly' },
+        skillProficiencyBand: { type: Type.STRING, enum: ['assisted', 'independent', 'advanced'], description: 'assisted when supervision is needed, independent for routine work without supervision, advanced when the person diagnoses and solves unfamiliar problems independently' },
+        existingQualification: { type: Type.STRING, description: 'Existing certificate or qualification related to the skill; record none when the beneficiary has no relevant certificate' },
         familyOccupation: { type: Type.STRING, description: 'Family or traditional occupation; use none when there is none' },
         interests: { type: Type.STRING, description: 'Work and activities the beneficiary enjoys' },
         preferredField: { type: Type.STRING, description: 'The livelihood field they want to pursue' },
@@ -51,6 +53,11 @@ Conduct a natural spoken conversation in ${languageNames[language.key]}. In Tami
 You are a livelihood counsellor, not a form filler. Collect the beneficiary's consent, age, district (currently supported pilot districts: ${districtNames.join(', ')}), education, current occupation, years of experience, existing skills, interests, preferred livelihood field, preference for a salaried job, self-employment or both, and willingness to travel or relocate.
 
 The beneficiary's name, family or traditional occupation, and mobility constraints are optional context. Save them if the beneficiary mentions them naturally, but do not explicitly ask for them and do not delay completion when they are absent.
+
+After years of experience and the relevant skill are clear:
+- If yearsExperience is greater than zero, ask exactly one natural follow-up that distinguishes whether the person needs supervision, handles routine tasks independently, or can diagnose and solve unfamiliar problems on their own. Map the answer to skillProficiencyBand as assisted, independent, or advanced respectively.
+- If yearsExperience is zero, do not ask any proficiency follow-up. Silently record skillProficiencyBand as assisted.
+- Ask whether they hold any existing certificate or qualification for that skill. Record its stated name accurately, or record existingQualification as none.
 
 Conversation rules:
 - Begin with a short friendly welcome, explain that you will have a brief conversation, and ask for consent.

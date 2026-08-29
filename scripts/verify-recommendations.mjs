@@ -24,7 +24,7 @@ assert.equal(coding[0].breakdown.nsqfNextLevelBoost,3,'Higher education should s
 const ravi = engine.recommendPathways({
   name:'Ravi',age:'28',education:'class10',currentOccupation:'Electrician helper',yearsExperience:'3',skills:'Basic wiring',
   interests:'Electrical work',preferredField:'Electrical maintenance',district:'Chennai',employmentPreference:'job',
-  willingToRelocate:'no',mobilityConstraints:'local only',
+  willingToRelocate:'no',mobilityConstraints:'local only',skillProficiencyBand:'independent',existingQualification:'none',
 });
 assert.ok(ravi.length > 0,'Ravi scenario should return an electrical pathway');
 assert.ok(ravi.every(item => ['Electrical','Green Jobs / Solar'].includes(item.sector)),'Ravi should receive only electrical or solar-electrical pathways');
@@ -50,6 +50,30 @@ const qualifiedTailor=engine.recommendPathways({
   skills:'Basic sewing',interests:'Tailoring',preferredField:'Garment work',district:'Coimbatore',employmentPreference:'both',willingToRelocate:'no',
 },5).find(item=>item.sector==='Apparel'&&item.nsqfLevel===3);
 assert.equal(qualifiedTailor?.breakdown.nsqfNextLevelBoost,3,'A qualification one level above an existing NSQF certificate should receive the small progression boost');
+
+const independentTailor=engine.recommendPathways({
+  age:'29',education:'class10',currentOccupation:'Tailor',yearsExperience:'3',skills:'Stitching, measurement and pattern cutting',
+  interests:'Tailoring',preferredField:'Garment work',district:'Coimbatore',employmentPreference:'self',willingToRelocate:'no',
+  skillProficiencyBand:'independent',existingQualification:'none',
+},10).find(item=>item.id==='Q-APP-002');
+assert.ok(independentTailor?.pathwayType.includes('Recognition of Prior Learning'),'An independent tailor with sufficient experience should receive an RPL/upskilling pathway');
+assert.equal(independentTailor?.breakdown.nsqfNextLevelBoost,3,'Independent proficiency should treat the sector entry level as cleared and boost the next NSQF level');
+
+const advancedTailor=engine.recommendPathways({
+  age:'34',education:'class10',currentOccupation:'Tailor',yearsExperience:'6',skills:'Independent garment construction, alterations and difficult fitting diagnosis',
+  interests:'Tailoring',preferredField:'Garment work',district:'Coimbatore',employmentPreference:'self',willingToRelocate:'no',
+  skillProficiencyBand:'advanced',existingQualification:'none',
+},10).find(item=>item.id==='Q-APP-002');
+assert.ok(advancedTailor?.pathwayType.includes('Recognition of Prior Learning'),'An advanced tailor with sufficient experience should receive an RPL/upskilling pathway');
+assert.equal(advancedTailor?.breakdown.nsqfNextLevelBoost,0,'Advanced proficiency should count one level above independent, so the existing Level 3 course is no longer treated as the next level');
+
+const assistedElectrician=engine.recommendPathways({
+  age:'31',education:'class10',currentOccupation:'Electrician helper',yearsExperience:'3',skills:'Basic wiring with supervisor support',
+  interests:'Electrical work',preferredField:'Electrical maintenance',district:'Chennai',employmentPreference:'job',willingToRelocate:'no',
+  skillProficiencyBand:'assisted',existingQualification:'none',
+},10).find(item=>item.id==='Q-ELE-001');
+assert.ok(assistedElectrician,'The assisted electrician scenario should retain a relevant electrical result');
+assert.equal(assistedElectrician.pathwayType,'Upskilling','An assisted worker must not receive RPL based on years alone');
 
 console.log(JSON.stringify({coding:coding.map(({name,sector,score})=>({name,sector,score})),ravi:ravi.map(({name,sector,score,pathwayType})=>({name,sector,score,pathwayType})),beginner:tailoringBeginner.map(({name,nsqfLevel,score,progression})=>({name,nsqfLevel,score,progression}))},null,2));
 

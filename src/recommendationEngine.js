@@ -55,7 +55,10 @@ export function checkEligibility(profile,qualification) {
 }
 export function buildBeneficiaryProfile(raw) {
   const district = raw.district || raw.location || '', defaults = districtLocations[district] || {};
-  return {...raw,education:normaliseEducation(raw.education),yearsExperience:Number.parseFloat(raw.yearsExperience)||0,
+  const yearsExperience=Number.parseFloat(raw.yearsExperience)||0;
+  const requestedBand=clean(raw.skillProficiencyBand);
+  const skillProficiencyBand=['assisted','independent','advanced'].includes(requestedBand)?requestedBand:'assisted';
+  return {...raw,education:normaliseEducation(raw.education),yearsExperience,skillProficiencyBand,existingQualification:raw.existingQualification||'none',
     employmentPreference:raw.employmentPreference||raw.goal||'both',willingToRelocate:raw.willingToRelocate||'limited',city:raw.city||defaults.city||district,
     district,state:raw.state||defaults.state||'Tamil Nadu',latitude:Number.isFinite(Number(raw.latitude))?Number(raw.latitude):defaults.latitude,
     longitude:Number.isFinite(Number(raw.longitude))?Number(raw.longitude):defaults.longitude,skillConcepts:extractSkillConcepts(raw)};
@@ -91,9 +94,13 @@ function orderedSectorQualifications(sector) {
 function inferredClearedNsqfLevel(profile,sectorQualifications) {
   const explicitText=[profile.existingQualification,profile.qualification,profile.certification].filter(Boolean).join(' ');
   const explicitMatch=explicitText.match(/nsqf\s*(?:level)?\s*[-:]?\s*(\d+)/i);
-  if(explicitMatch)return Number(explicitMatch[1]);
   const entryLevel=sectorQualifications[0]?.nsqfLevel;
-  return entryLevel!==undefined&&(educationRank[profile.education]??0)>=educationRank.iti ? entryLevel : null;
+  const proficiencySteps={assisted:0,independent:1,advanced:2};
+  const proficiencyStep=proficiencySteps[profile.skillProficiencyBand]??0;
+  const proficiencyLevel=entryLevel===undefined?null:Math.max(0,entryLevel-1+proficiencyStep);
+  const educationLevel=entryLevel!==undefined&&(educationRank[profile.education]??0)>=educationRank.iti?entryLevel:null;
+  const candidates=[explicitMatch?Number(explicitMatch[1]):null,educationLevel,proficiencyLevel].filter(Number.isFinite);
+  return candidates.length?Math.max(...candidates):null;
 }
 function buildQualificationProgression(profile,qualification) {
   const ordered=orderedSectorQualifications(qualification.sector);
@@ -130,10 +137,14 @@ export function recommendPathways(rawProfile,limit=3) {
       nsqfEntryFit,nsqfNextLevelBoost};
     const score=Math.min(100,Object.values(breakdown).reduce((sum,value)=>sum+value,0));
     if (score<MIN_RECOMMENDATION_SCORE) return [];
-    const pathwayType=experienceRelated&&profile.yearsExperience>=qualification.rplMinExperience?'Recognition of Prior Learning / advanced upskilling':experienceRelated?'Upskilling':'Beginner training';
+    const rplEligible=experienceRelated&&profile.yearsExperience>=qualification.rplMinExperience&&profile.skillProficiencyBand!=='assisted';
+    const pathwayType=rplEligible?'Recognition of Prior Learning / advanced upskilling':experienceRelated?'Upskilling':'Beginner training';
     const knownSkills=unique([profile.skills,profile.currentOccupation].filter(Boolean)), skillGaps=qualification.skillsGained;
     const reasons=[interestRelated&&`Matches your stated interest in ${profile.interests||profile.preferredField}`,skillsRelated&&`Uses your existing skills: ${profile.skills}`,
       experienceRelated&&`Builds on ${profile.yearsExperience} years of relevant experience`,preferenceMatch&&`Matches your ${profile.employmentPreference==='job'?'wage-employment':profile.employmentPreference==='self'?'self-employment':'job or self-employment'} preference`,
+      experienceRelated&&profile.skillProficiencyBand==='assisted'&&'Uses upskilling because you currently work with supervision',
+      experienceRelated&&profile.skillProficiencyBand==='independent'&&'Recognises that you handle routine work independently',
+      experienceRelated&&profile.skillProficiencyBand==='advanced'&&'Recognises independent diagnosis and unfamiliar problem-solving',
       !experienceRelated&&qualification.nsqfLevel===sectorEntryLevel&&`Provides the sector's lowest eligible NSQF entry point (Level ${sectorEntryLevel})`,
       nsqfNextLevelBoost>0&&`Progresses one NSQF level above your existing qualification or education-based entry level`,
       local?`Training is represented in ${profile.district}`:mobile&&'Included because you can travel for work or training'].filter(Boolean);

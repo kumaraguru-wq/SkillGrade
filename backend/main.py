@@ -34,6 +34,8 @@ class Application(BaseModel):
     currentOccupation: str = ""
     yearsExperience: str = "0"
     skills: str = ""
+    skillProficiencyBand: Literal["assisted", "independent", "advanced"] = "assisted"
+    existingQualification: str = "none"
     interests: str = ""
     employmentPreference: str = "both"
     willingToRelocate: str = "limited"
@@ -68,9 +70,19 @@ def init_database() -> None:
         connection.execute("""CREATE TABLE IF NOT EXISTS applications (
             reference TEXT PRIMARY KEY, submitted_at TEXT NOT NULL, account_hash TEXT NOT NULL,
             age_band TEXT, district TEXT NOT NULL, state TEXT NOT NULL, education TEXT,
-            occupation TEXT, experience_years REAL, skills TEXT, interests TEXT,
+            occupation TEXT, experience_years REAL, skills TEXT, skill_proficiency_band TEXT,
+            existing_qualification TEXT, interests TEXT,
             employment_preference TEXT, mobility TEXT, selected_course TEXT, language TEXT, status TEXT NOT NULL
         )""")
+        for column_definition in (
+            "skill_proficiency_band TEXT DEFAULT 'assisted'",
+            "existing_qualification TEXT DEFAULT 'none'",
+        ):
+            try:
+                connection.execute(f"ALTER TABLE applications ADD COLUMN {column_definition}")
+            except sqlite3.OperationalError as exc:
+                if "duplicate column name" not in str(exc).lower():
+                    raise
 
 
 init_database()
@@ -124,10 +136,10 @@ def create_application(application: Application) -> dict[str, str]:
     account_hash = hashlib.sha256(application.accountId.strip().lower().encode("utf-8")).hexdigest()
     with sqlite3.connect(DATABASE_PATH) as connection:
         connection.execute("""INSERT INTO applications
-            (reference,submitted_at,account_hash,age_band,district,state,education,occupation,experience_years,skills,interests,employment_preference,mobility,selected_course,language,status)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
+            (reference,submitted_at,account_hash,age_band,district,state,education,occupation,experience_years,skills,skill_proficiency_band,existing_qualification,interests,employment_preference,mobility,selected_course,language,status)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(
             reference,now.isoformat(),account_hash,age_band,application.district,application.state,application.education,
-            application.currentOccupation,float(application.yearsExperience or 0),application.skills,application.interests,
+            application.currentOccupation,float(application.yearsExperience or 0),application.skills,application.skillProficiencyBand,application.existingQualification,application.interests,
             application.employmentPreference,application.willingToRelocate,application.selectedCourse,application.language,"received"
         ))
     return {
