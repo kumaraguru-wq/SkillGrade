@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, LockKeyhole, ShieldCheck, UserRound } from 'lucide-react';
 
-const ACCOUNTS_KEY='skillgrade-accounts-v1';
+export const ACCOUNTS_KEY='skillgrade-accounts-v1';
 const bytesToText=bytes=>btoa(String.fromCharCode(...bytes));
 const textToBytes=text=>Uint8Array.from(atob(text),char=>char.charCodeAt(0));
 async function passwordHash(password,salt) {

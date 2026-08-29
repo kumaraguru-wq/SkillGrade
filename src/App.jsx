@@ -12,7 +12,7 @@ import { recommendPathways } from './recommendationEngine';
 import { AssessmentForm, CareerRoadmap, CounsellorAdmin, LivelihoodRecommendations, ProfileSummary, RecommendationDetails } from './CounsellorPages';
 import { OpportunityDetails, OpportunityRecommendations, PersonalizedRoadmap } from './LivelihoodJourney';
 import SavedProfiles from './SavedProfiles';
-import AuthScreen from './AuthScreen';
+import AuthScreen,{ACCOUNTS_KEY} from './AuthScreen';
 import { demoScenario } from './demoScenario';
 
 const SESSION_KEY='skillgrade-session-v1';
@@ -1011,6 +1011,7 @@ export default function App() {
     reset();
     sessionStorage.removeItem(SESSION_KEY);
     localStorage.removeItem(PENDING_APPLICATION_KEY);
+    localStorage.removeItem(ACCOUNTS_KEY);
     const keysToRemove=Object.keys(localStorage).filter(key=>key.startsWith('skillgrade-beneficiaries-v2:'));
     keysToRemove.forEach(key=>localStorage.removeItem(key));
     setSavedRecords([]);
