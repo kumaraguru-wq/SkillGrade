@@ -3,12 +3,12 @@ import { GoogleGenAI, Modality, Type } from '@google/genai';
 import { ArrowLeft, Check, CircleStop, Mic, MicOff, RefreshCcw, ShieldCheck, Sparkles, Volume2, X } from 'lucide-react';
 import { LiveAudioPlayer, LiveMicrophone, bytesToBase64 } from './liveAudio';
 import { supportedDistricts } from './location';
+import { INTERVIEW_REQUIRED_FIELDS } from './interviewFields';
 
 const districtNames=supportedDistricts.map(item=>item.name);
 
-const REQUIRED_FIELDS = ['consent', 'age', 'district', 'education', 'currentOccupation', 'yearsExperience', 'skills', 'interests', 'preferredField', 'employmentPreference', 'willingToRelocate'];
-const OPTIONAL_FIELDS = ['name', 'familyOccupation', 'mobilityConstraints', 'skillProficiencyBand', 'existingQualification'];
-const COLLECTABLE_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
+const OPTIONAL_FIELDS = ['familyOccupation', 'mobilityConstraints', 'skillProficiencyBand', 'existingQualification'];
+const COLLECTABLE_FIELDS = [...INTERVIEW_REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
 const languageNames = { en: 'English', hi: 'Hindi', ta: 'Tamil with natural Tanglish and English code-switching' };
 
@@ -50,9 +50,9 @@ function systemInstruction(language) {
 
 Conduct a natural spoken conversation in ${languageNames[language.key]}. In Tamil, understand and naturally use common Tanglish and English work words such as coding, computer, tailoring and business. Never sound like a questionnaire or announce field names.
 
-You are a livelihood counsellor, not a form filler. Collect the beneficiary's consent, age, district (currently supported pilot districts: ${districtNames.join(', ')}), education, current occupation, years of experience, existing skills, interests, preferred livelihood field, preference for a salaried job, self-employment or both, and willingness to travel or relocate.
+You are a livelihood counsellor, not a form filler. Collect the beneficiary's consent, full name, age, district (currently supported pilot districts: ${districtNames.join(', ')}), education, current occupation, years of experience, existing skills, interests, preferred livelihood field, preference for a salaried job, self-employment or both, and willingness to travel or relocate.
 
-The beneficiary's name, family or traditional occupation, and mobility constraints are optional context. Save them if the beneficiary mentions them naturally, but do not explicitly ask for them and do not delay completion when they are absent.
+The beneficiary's family or traditional occupation and mobility constraints are optional context. Save them if the beneficiary mentions them naturally, but do not explicitly ask for them and do not delay completion when they are absent.
 
 After years of experience and the relevant skill are clear:
 - If yearsExperience is greater than zero, ask exactly one natural follow-up that distinguishes whether the person needs supervision, handles routine tasks independently, or can diagnose and solve unfamiliar problems on their own. Map the answer to skillProficiencyBand as assisted, independent, or advanced respectively.
@@ -60,7 +60,7 @@ After years of experience and the relevant skill are clear:
 - Ask whether they hold any existing certificate or qualification for that skill. Record its stated name accurately, or record existingQualification as none.
 
 Conversation rules:
-- Begin with a short friendly welcome, explain that you will have a brief conversation, and ask for consent.
+- Begin with a short friendly welcome, explain that you will have a brief conversation, and ask for consent. After consent, clearly ask for the beneficiary's full name in the selected conversation language and record it before completing the interview.
 - Ask only one thing at a time, but respond naturally to whatever the person says.
 - Do not ask “is that correct?” after each answer. Briefly acknowledge and continue.
 - Use record_beneficiary_details silently whenever information becomes clear.
@@ -101,7 +101,7 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
 
   useEffect(() => { mutedRef.current = muted || !active; }, [active, muted]);
 
-  const savedCount = useMemo(() => REQUIRED_FIELDS.filter(field => profile[field]).length, [profile]);
+  const savedCount = useMemo(() => INTERVIEW_REQUIRED_FIELDS.filter(field => profile[field]).length, [profile]);
 
   const handleToolCalls = useCallback(async message => {
     const calls = message.toolCall?.functionCalls || [];
@@ -119,7 +119,7 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
         responses.push({ id: call.id, name: call.name, response: { result: 'Details saved', savedFields: Object.keys(cleaned) } });
       }
       if (call.name === 'complete_interview') {
-        const missing = REQUIRED_FIELDS.filter(field => !profileRef.current[field]);
+        const missing = INTERVIEW_REQUIRED_FIELDS.filter(field => !profileRef.current[field]);
         if (missing.length) responses.push({ id: call.id, name: call.name, response: { result: 'Cannot finish yet', missingFields: missing } });
         else {
           pendingCompletionRef.current = true;
@@ -268,7 +268,7 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
     </header>
 
     <section className="gemini-live-content">
-      <div className="live-progress"><div><span>Application details</span><b>{savedCount} of {REQUIRED_FIELDS.length}</b></div><div><i style={{ width: `${(savedCount / REQUIRED_FIELDS.length) * 100}%` }}/></div></div>
+      <div className="live-progress"><div><span>Application details</span><b>{savedCount} of {INTERVIEW_REQUIRED_FIELDS.length}</b></div><div><i style={{ width: `${(savedCount / INTERVIEW_REQUIRED_FIELDS.length) * 100}%` }}/></div></div>
       <div className="live-visual"><GeminiOrb status={status}/><p className="live-state">{status === 'connecting' ? 'Connecting securely…' : status === 'speaking' ? 'SkillGrade is speaking' : status === 'listening' ? 'I’m listening' : 'Connection paused'}</p><span className="live-language">{language.native} · natural conversation</span></div>
 
       <div className="live-captions">

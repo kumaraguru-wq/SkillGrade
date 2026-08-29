@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ArrowRight, BarChart3, BriefcaseBusiness, CheckCircle2, Clock3, GraduationCap, LocateFixed, MapPin, Mic, Route, Sparkles, Volume2 } from 'lucide-react';
 import { opportunities, qualifications, trainingCentres } from './recommendationEngine';
 import { districtLocations, nearestPilotDistrict, supportedDistricts } from './location';
+import { INTERVIEW_REQUIRED_FIELDS } from './interviewFields';
 
 const fieldMeta = [
   ['name','Full name','text'], ['age','Age','number'], ['city','City / town','text'], ['district','District','select'], ['pincode','Pincode','text'],
@@ -29,7 +30,8 @@ function Input({ meta, value, onChange }) {
 export function AssessmentForm({ profile, onChange, onComplete, onBack }) {
   const [draft,setDraft] = useState(profile);
   const update = (id,value) => { const next = {...draft,[id]:value}; setDraft(next); onChange(next); };
-  const ready = ['name','age','district','education','currentOccupation','yearsExperience','skills','interests','preferredField','employmentPreference','willingToRelocate'].every(k => String(draft[k] || '').trim());
+  const readyProfile = {...draft,consent:draft.consent||'yes'};
+  const ready = INTERVIEW_REQUIRED_FIELDS.every(k => String(readyProfile[k] || '').trim());
   return <main className="content-page counsel-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18}/>Back</button><div className="page-heading"><div><div className="eyebrow"><BriefcaseBusiness size={15}/>BENEFICIARY ASSESSMENT</div><h1>Tell us about your livelihood journey</h1><p>Use this simple form, or return and speak naturally with the AI counsellor.</p></div><span className="prototype-badge">Prototype assessment</span></div><section className="counsel-card"><div className="assessment-grid">{fieldMeta.map(meta => <Input key={meta[0]} meta={meta} value={draft[meta[0]]} onChange={update}/>)}</div><button className="primary" disabled={!ready} onClick={() => onComplete({...draft,consent:'yes'})}>Review my profile<ArrowRight size={18}/></button></section></main>;
 }
 

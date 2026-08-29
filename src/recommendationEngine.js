@@ -48,10 +48,27 @@ const directHits = (text,tags) => tags.filter(tag => includesPhrase(text,tag));
 
 export function checkEligibility(profile,qualification) {
   const reasons = [], education = normaliseEducation(profile.education), age = Number.parseInt(profile.age,10) || 0;
-  if ((educationRank[education] ?? 0) < (educationRank[qualification.minEducation] ?? 0)) reasons.push(`Requires at least ${qualification.minEducation.replace('class','Class ')}`);
-  if (age && age < qualification.minAge) reasons.push(`Minimum age is ${qualification.minAge}`);
-  if (age && age > qualification.maxAge) reasons.push(`Prototype age limit is ${qualification.maxAge}`);
-  return { eligible:reasons.length === 0, reasons };
+  const beneficiaryEducationRank=educationRank[education]??0, requiredEducationRank=educationRank[qualification.minEducation]??0;
+  const yearsExperience=Number.parseFloat(profile.yearsExperience)||0, proficiencyBand=clean(profile.skillProficiencyBand)||'assisted';
+  const relevantExperience=intersects(extractSkillConcepts(profile),qualificationConcepts(qualification));
+  const rplQualified=yearsExperience>0&&yearsExperience>=qualification.rplMinExperience&&proficiencyBand!=='assisted'&&relevantExperience;
+  let eligible=true;
+  if (beneficiaryEducationRank<requiredEducationRank) {
+    if (rplQualified&&requiredEducationRank-beneficiaryEducationRank===1) reasons.push('Experience-based education exception applied');
+    else {
+      reasons.push(`Requires at least ${qualification.minEducation.replace('class','Class ')}`);
+      eligible=false;
+    }
+  }
+  if (age && age < qualification.minAge) {
+    reasons.push(`Minimum age is ${qualification.minAge}`);
+    eligible=false;
+  }
+  if (age && age > qualification.maxAge) {
+    reasons.push(`Prototype age limit is ${qualification.maxAge}`);
+    eligible=false;
+  }
+  return {eligible,reasons};
 }
 export function buildBeneficiaryProfile(raw) {
   const district = raw.district || raw.location || '', defaults = districtLocations[district] || {};
@@ -140,7 +157,7 @@ export function recommendPathways(rawProfile,limit=3) {
     const rplEligible=experienceRelated&&profile.yearsExperience>=qualification.rplMinExperience&&profile.skillProficiencyBand!=='assisted';
     const pathwayType=rplEligible?'Recognition of Prior Learning / advanced upskilling':experienceRelated?'Upskilling':'Beginner training';
     const knownSkills=unique([profile.skills,profile.currentOccupation].filter(Boolean)), skillGaps=qualification.skillsGained;
-    const reasons=[interestRelated&&`Matches your stated interest in ${profile.interests||profile.preferredField}`,skillsRelated&&`Uses your existing skills: ${profile.skills}`,
+    const reasons=[...gate.eligibility.reasons,interestRelated&&`Matches your stated interest in ${profile.interests||profile.preferredField}`,skillsRelated&&`Uses your existing skills: ${profile.skills}`,
       experienceRelated&&`Builds on ${profile.yearsExperience} years of relevant experience`,preferenceMatch&&`Matches your ${profile.employmentPreference==='job'?'wage-employment':profile.employmentPreference==='self'?'self-employment':'job or self-employment'} preference`,
       experienceRelated&&profile.skillProficiencyBand==='assisted'&&'Uses upskilling because you currently work with supervision',
       experienceRelated&&profile.skillProficiencyBand==='independent'&&'Recognises that you handle routine work independently',

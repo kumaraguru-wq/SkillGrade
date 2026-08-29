@@ -46,9 +46,9 @@ assert.deepEqual(progressionLevels,[...progressionLevels].sort((a,b)=>a-b),'Road
 assert.ok(progressionLevels.some(level=>level>tailoringBeginner[0].nsqfLevel),'Roadmap should name a real higher-level same-sector course');
 
 const qualifiedTailor=engine.recommendPathways({
-  age:'24',education:'class10',existingQualification:'NSQF Level 2 tailoring certificate',currentOccupation:'Tailoring learner',yearsExperience:'0',
+  age:'24',education:'class10',existingQualification:'NSQF Level 3 tailoring certificate',currentOccupation:'Tailoring learner',yearsExperience:'0',
   skills:'Basic sewing',interests:'Tailoring',preferredField:'Garment work',district:'Coimbatore',employmentPreference:'both',willingToRelocate:'no',
-},5).find(item=>item.sector==='Apparel'&&item.nsqfLevel===3);
+},5).find(item=>item.sector==='Apparel'&&item.nsqfLevel===4);
 assert.equal(qualifiedTailor?.breakdown.nsqfNextLevelBoost,3,'A qualification one level above an existing NSQF certificate should receive the small progression boost');
 
 const independentTailor=engine.recommendPathways({
@@ -57,7 +57,7 @@ const independentTailor=engine.recommendPathways({
   skillProficiencyBand:'independent',existingQualification:'none',
 },10).find(item=>item.id==='Q-APP-002');
 assert.ok(independentTailor?.pathwayType.includes('Recognition of Prior Learning'),'An independent tailor with sufficient experience should receive an RPL/upskilling pathway');
-assert.equal(independentTailor?.breakdown.nsqfNextLevelBoost,3,'Independent proficiency should treat the sector entry level as cleared and boost the next NSQF level');
+assert.equal(independentTailor?.breakdown.nsqfNextLevelBoost,0,'Independent proficiency clears the Level 2 entry point, so corrected Level 4 is not treated as the immediate next level');
 
 const advancedTailor=engine.recommendPathways({
   age:'34',education:'class10',currentOccupation:'Tailor',yearsExperience:'6',skills:'Independent garment construction, alterations and difficult fitting diagnosis',
@@ -65,7 +65,7 @@ const advancedTailor=engine.recommendPathways({
   skillProficiencyBand:'advanced',existingQualification:'none',
 },10).find(item=>item.id==='Q-APP-002');
 assert.ok(advancedTailor?.pathwayType.includes('Recognition of Prior Learning'),'An advanced tailor with sufficient experience should receive an RPL/upskilling pathway');
-assert.equal(advancedTailor?.breakdown.nsqfNextLevelBoost,0,'Advanced proficiency should count one level above independent, so the existing Level 3 course is no longer treated as the next level');
+assert.equal(advancedTailor?.breakdown.nsqfNextLevelBoost,3,'Advanced proficiency counts as effectively clearing Level 3, so corrected Level 4 receives the next-level boost');
 
 const assistedElectrician=engine.recommendPathways({
   age:'31',education:'class10',currentOccupation:'Electrician helper',yearsExperience:'3',skills:'Basic wiring with supervisor support',
@@ -74,6 +74,23 @@ const assistedElectrician=engine.recommendPathways({
 },10).find(item=>item.id==='Q-ELE-001');
 assert.ok(assistedElectrician,'The assisted electrician scenario should retain a relevant electrical result');
 assert.equal(assistedElectrician.pathwayType,'Upskilling','An assisted worker must not receive RPL based on years alone');
+
+const foodQualification=engine.qualifications.find(item=>item.id==='Q-FOD-001');
+const experiencedCookProfile={
+  age:'42',education:'class5',currentOccupation:'Home cook',yearsExperience:'6',skills:'Cooking snacks and pickles',
+  interests:'Food business',preferredField:'Food processing',district:'Tiruchirappalli',employmentPreference:'self',
+  willingToRelocate:'yes',skillProficiencyBand:'independent',existingQualification:'none',
+};
+const experiencedCook=engine.recommendPathways(experiencedCookProfile,10);
+assert.ok(experiencedCook.length>=1,'An experienced, non-assisted cook one education step below the requirement should receive at least one match');
+assert.ok(experiencedCook.some(item=>item.id==='Q-FOD-001'),'The experienced cook should pass eligibility for the relevant food-processing qualification');
+assert.ok(experiencedCook.find(item=>item.id==='Q-FOD-001')?.reasons.includes('Experience-based education exception applied'),'The education relaxation must be visible in the recommendation reasons');
+
+const inexperiencedCookProfile={...experiencedCookProfile,yearsExperience:'0'};
+const inexperiencedCookEligibility=engine.checkEligibility(engine.buildBeneficiaryProfile(inexperiencedCookProfile),foodQualification);
+assert.equal(inexperiencedCookEligibility.eligible,false,'A Class 5 cook with zero experience must still fail a Class 8 education requirement');
+assert.ok(inexperiencedCookEligibility.reasons.some(reason=>reason.includes('Requires at least Class 8')),'The failed education requirement should remain explainable');
+assert.equal(engine.recommendPathways(inexperiencedCookProfile,10).some(item=>item.id==='Q-FOD-001'),false,'The zero-experience control must not receive the same qualification');
 
 console.log(JSON.stringify({coding:coding.map(({name,sector,score})=>({name,sector,score})),ravi:ravi.map(({name,sector,score,pathwayType})=>({name,sector,score,pathwayType})),beginner:tailoringBeginner.map(({name,nsqfLevel,score,progression})=>({name,nsqfLevel,score,progression}))},null,2));
 
@@ -108,7 +125,7 @@ const thresholdSamples = [
   },
   {
     name:'Experienced cook below course education',
-    profile:{age:'42',education:'class5',currentOccupation:'Home cook',yearsExperience:'6',skills:'Cooking snacks and pickles',interests:'Food business',preferredField:'Food processing',district:'Tiruchirappalli',employmentPreference:'self',willingToRelocate:'no'},
+    profile:experiencedCookProfile,
   },
 ];
 
