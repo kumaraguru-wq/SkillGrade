@@ -1,5 +1,6 @@
 import { build } from 'vite';
 import assert from 'node:assert/strict';
+import { demoScenario } from '../src/demoScenario.js';
 
 const result = await build({
   configFile:false,
@@ -75,6 +76,12 @@ const assistedElectrician=engine.recommendPathways({
 assert.ok(assistedElectrician,'The assisted electrician scenario should retain a relevant electrical result');
 assert.equal(assistedElectrician.pathwayType,'Upskilling','An assisted worker must not receive RPL based on years alone');
 
+const scriptedDemo=engine.recommendPathways(demoScenario,5);
+assert.ok(scriptedDemo.length>0,'The scripted judging demo must always return a recommendation');
+assert.equal(scriptedDemo[0].id,'Q-APP-002','The scripted experienced-tailor demo should rank Self Employed Tailor first');
+assert.ok(scriptedDemo[0].pathwayType.includes('Recognition of Prior Learning'),'The scripted demo should visibly select an RPL/upskilling pathway');
+assert.ok(scriptedDemo[0].progression.some(step=>step.includes('NSQF Level 4')),'The scripted demo roadmap should visibly progress to NSQF Level 4');
+
 const foodQualification=engine.qualifications.find(item=>item.id==='Q-FOD-001');
 const experiencedCookProfile={
   age:'42',education:'class5',currentOccupation:'Home cook',yearsExperience:'6',skills:'Cooking snacks and pickles',
@@ -91,6 +98,26 @@ const inexperiencedCookEligibility=engine.checkEligibility(engine.buildBeneficia
 assert.equal(inexperiencedCookEligibility.eligible,false,'A Class 5 cook with zero experience must still fail a Class 8 education requirement');
 assert.ok(inexperiencedCookEligibility.reasons.some(reason=>reason.includes('Requires at least Class 8')),'The failed education requirement should remain explainable');
 assert.equal(engine.recommendPathways(inexperiencedCookProfile,10).some(item=>item.id==='Q-FOD-001'),false,'The zero-experience control must not receive the same qualification');
+
+const unsupportedDistrict=engine.recommendPathways({
+  age:'27',education:'graduate',currentOccupation:'Software developer',yearsExperience:'2',skills:'Coding and JavaScript',
+  interests:'Software development',preferredField:'Coding',district:'Unsupported District',employmentPreference:'job',willingToRelocate:'yes',
+},10);
+assert.deepEqual(unsupportedDistrict,[],'An unsupported district should return zero matches instead of ranking against unknown location data');
+
+const noLivelihoodSignals=engine.recommendPathways({
+  age:'25',education:'class10',currentOccupation:'',yearsExperience:'0',skills:'',interests:'',preferredField:'',
+  district:'Chennai',employmentPreference:'both',willingToRelocate:'no',
+},10);
+assert.deepEqual(noLivelihoodSignals,[],'A profile with no occupation, skill or interest signals should return zero matches without crashing');
+
+const contradictoryPreference=engine.recommendPathways({
+  age:'30',education:'class10',currentOccupation:'Tailor',yearsExperience:'4',skills:'Stitching, measurement and garment cutting',
+  interests:'Tailoring and home tailoring business',preferredField:'Self-employed tailoring',district:'Coimbatore',
+  employmentPreference:'job',willingToRelocate:'no',skillProficiencyBand:'independent',
+},10);
+assert.ok(contradictoryPreference.some(item=>item.id==='Q-APP-001'),'The contradictory profile may retain a tailoring qualification that supports wage employment');
+assert.equal(contradictoryPreference.some(item=>item.id==='Q-APP-002'),false,'A job-only preference must filter out the self-employment-focused tailor qualification');
 
 console.log(JSON.stringify({coding:coding.map(({name,sector,score})=>({name,sector,score})),ravi:ravi.map(({name,sector,score,pathwayType})=>({name,sector,score,pathwayType})),beginner:tailoringBeginner.map(({name,nsqfLevel,score,progression})=>({name,nsqfLevel,score,progression}))},null,2));
 

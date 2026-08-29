@@ -1,0 +1,25 @@
+export const demoScenario = Object.freeze({
+  consent: 'yes',
+  name: 'Meena Selvi',
+  age: '34',
+  education: 'class10',
+  currentOccupation: 'Sewing Machine Operator and home tailor',
+  yearsExperience: '6',
+  skills: 'Machine stitching, garment measurement, pattern cutting, alterations and customer orders',
+  skillProficiencyBand: 'advanced',
+  existingQualification: 'NSQF Level 2 Sewing Machine Operator certificate',
+  familyOccupation: 'Tailoring',
+  interests: 'Tailoring, garment construction and running a home tailoring business',
+  preferredField: 'Advanced tailoring and garment work',
+  employmentPreference: 'self',
+  willingToRelocate: 'no',
+  mobilityConstraints: 'Local opportunities only',
+  city: 'Coimbatore',
+  district: 'Coimbatore',
+  state: 'Tamil Nadu',
+  latitude: 11.0168,
+  longitude: 76.9558,
+  locationSource: 'demo',
+});
+
+export default demoScenario;

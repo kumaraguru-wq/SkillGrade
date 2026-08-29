@@ -12,14 +12,14 @@
     "backend": "python -m uvicorn backend.main:app --reload --port 8000"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "@google/genai": "latest",
-    "concurrently": "latest",
-    "vite": "latest",
-    "typescript": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "lucide-react": "latest"
+    "@vitejs/plugin-react": "^6.1.1",
+    "@google/genai": "^2.19.0",
+    "concurrently": "^10.0.5",
+    "vite": "^8.2.2",
+    "typescript": "^7.0.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "lucide-react": "^1.35.0"
   },
   "devDependencies": {}
 }

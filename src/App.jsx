@@ -13,14 +13,32 @@ import { AssessmentForm, CareerRoadmap, CounsellorAdmin, LivelihoodRecommendatio
 import { OpportunityDetails, OpportunityRecommendations, PersonalizedRoadmap } from './LivelihoodJourney';
 import SavedProfiles from './SavedProfiles';
 import AuthScreen from './AuthScreen';
+import { demoScenario } from './demoScenario';
 
 const SESSION_KEY='skillgrade-session-v1';
+const PENDING_APPLICATION_KEY='skillgrade-last-application';
 const savedProfilesKey=userId=>`skillgrade-beneficiaries-v2:${userId}`;
 function loadSession() { try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null') } catch { return null } }
 function loadSavedProfiles(userId) {
   if(!userId)return [];
   try { const value = JSON.parse(localStorage.getItem(savedProfilesKey(userId)) || '[]'); return Array.isArray(value) ? value : []; }
   catch { return []; }
+}
+function loadPendingApplication() {
+  try { return JSON.parse(localStorage.getItem(PENDING_APPLICATION_KEY)||'null'); }
+  catch { return null; }
+}
+async function postApplication(payload) {
+  const response=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  if(response.status!==201)throw new Error(`Application submission returned ${response.status}`);
+  const result=await response.json();
+  if(!result.reference)throw new Error('Application submission did not return a reference');
+  return result;
+}
+function withoutBeneficiaryName(profileValue) {
+  const minimized={...profileValue};
+  delete minimized.name;
+  return minimized;
 }
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -292,7 +310,10 @@ function BrandMark() {
   return <div className="brand-mark" aria-hidden="true"><img src="/skillgrade-logo.png" alt=""/></div>;
 }
 
-function Header({ t, view, setView, compact = false, user, onLogout }) {
+function Header({ t, view, setView, compact = false, user, onLogout, isOnline }) {
+  const openOfficerPreview=()=>{
+    if(view==='dashboard'||window.confirm('This is a preview of the officer dashboard — continue?'))setView('dashboard');
+  };
   return <header className={`topbar ${compact ? 'compact' : ''}`}>
     <button className="brand" onClick={() => setView('home')} aria-label="SkillGrade home">
       <BrandMark />
@@ -300,9 +321,9 @@ function Header({ t, view, setView, compact = false, user, onLogout }) {
     </button>
     <nav className="mode-switch" aria-label="Change view">
       <button className={view !== 'dashboard' ? 'active' : ''} onClick={() => setView('home')}><CircleUserRound size={16}/><span>{t.beneficiary}</span></button>
-      <button className={view === 'dashboard' ? 'active' : ''} onClick={() => setView('dashboard')}><BarChart3 size={16}/><span>{t.officer}</span></button>
+      <button className={view === 'dashboard' ? 'active' : ''} onClick={openOfficerPreview}><BarChart3 size={16}/><span>{t.officer}</span></button>
     </nav>
-    <div className="account-menu"><span>{user?.name}</span><button onClick={onLogout} title="Sign out"><LogOut size={16}/><i>Sign out</i></button></div>
+    <div className="account-menu"><div className={`connectivity-status ${isOnline?'online':'offline'}`} role="status" aria-live="polite"><i/>{isOnline?'Online':'Offline'}</div><span>{user?.name}</span><button onClick={onLogout} title="Sign out"><LogOut size={16}/><i>Sign out</i></button></div>
   </header>;
 }
 
@@ -804,13 +825,16 @@ function Review({ language, t, profile, selectedCourse, onBack, onSubmit, submit
   </main>;
 }
 
-function Success({ language, t, reference, onReset, onBack, geminiSpeak }) {
+function Success({ language, t, reference, submissionStatus, onRetrySync, syncing, onReset, onBack, geminiSpeak }) {
+  const pending=submissionStatus==='pending-sync';
   useEffect(() => {
-    const text = language.key === 'hi' ? `आपका आवेदन जमा हो गया है। संदर्भ संख्या ${reference}` : language.key === 'ta' ? `உங்கள் விண்ணப்பம் சமர்ப்பிக்கப்பட்டது. குறிப்பு எண் ${reference}` : `Your application has been submitted. Reference number ${reference}`;
+    const text = pending
+      ? language.key === 'hi' ? 'आपका आवेदन इस डिवाइस पर सुरक्षित है और इंटरनेट वापस आने पर सिंक हो जाएगा।' : language.key === 'ta' ? 'உங்கள் விண்ணப்பம் இந்தச் சாதனத்தில் சேமிக்கப்பட்டுள்ளது. இணையம் திரும்பியதும் அது ஒத்திசைக்கப்படும்.' : "Your application is saved and will sync when you're back online."
+      : language.key === 'hi' ? `आपका आवेदन जमा हो गया है। संदर्भ संख्या ${reference}` : language.key === 'ta' ? `உங்கள் விண்ணப்பம் சமர்ப்பிக்கப்பட்டது. குறிப்பு எண் ${reference}` : `Your application has been submitted. Reference number ${reference}`;
     const timer = setTimeout(() => geminiSpeak?.(text), 400);
     return () => clearTimeout(timer);
-  }, [geminiSpeak, language, reference]);
-  return <main className="success-page"><button className="back-link success-back" onClick={onBack}><ArrowLeft size={18}/>Back to roadmap</button><div className="success-art"><span/><span/><span/><div><Check size={42}/></div></div><p className="eyebrow"><CheckCircle2 size={15}/>SUBMISSION RECEIVED</p><h1>{t.complete}</h1><p>{t.doneText}</p><div className="reference"><span>{t.ref}</span><b>{reference}</b><button onClick={() => navigator.clipboard?.writeText(reference)}><SquarePen size={16}/></button></div><div className="agency"><ShieldCheck size={22}/><span><small>SIMULATED SUBMISSION TO</small><b>Tamil Nadu Skill Development Corporation</b></span></div><button className="primary" onClick={onReset}><RefreshCcw size={18}/>{t.newApp}</button></main>;
+  }, [geminiSpeak, language, pending, reference]);
+  return <main className={`success-page${pending?' pending-sync':''}`}><button className="back-link success-back" onClick={onBack}><ArrowLeft size={18}/>Back to roadmap</button><div className="success-art"><span/><span/><span/><div>{pending?<WifiOff size={42}/>:<Check size={42}/>}</div></div><p className={`eyebrow submission-badge${pending?' pending':''}`}>{pending?<><Clock3 size={15}/>PENDING SYNC</>:<><CheckCircle2 size={15}/>SUBMISSION RECEIVED</>}</p><h1>{pending?'Saved on this device':t.complete}</h1><p>{pending?"Your application is saved and will sync when you're back online":t.doneText}</p><div className="reference"><span>{pending?'Local tracking reference':t.ref}</span><b>{reference}</b><button onClick={() => navigator.clipboard?.writeText(reference)}><SquarePen size={16}/></button></div><div className="agency">{pending?<WifiOff size={22}/>:<ShieldCheck size={22}/>}<span><small>{pending?'NOT SENT TO THE SERVER YET':'SIMULATED SUBMISSION TO'}</small><b>{pending?'Waiting for a backend connection':'Tamil Nadu Skill Development Corporation'}</b></span></div><div className="success-actions">{pending&&<button className="retry-sync" disabled={syncing} onClick={onRetrySync}>{syncing?<RefreshCcw className="spin" size={18}/>:<RefreshCcw size={18}/>} {syncing?'Retrying…':'Retry sync'}</button>}<button className="primary" onClick={onReset}><RefreshCcw size={18}/>{t.newApp}</button></div></main>;
 }
 
 function Dashboard({ t, profile, ranked, selectedCourse, reference }) {
@@ -836,6 +860,9 @@ export default function App() {
   const [selected, setSelected] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [reference, setReference] = useState('');
+  const [submissionStatus,setSubmissionStatus]=useState('idle');
+  const [syncing,setSyncing]=useState(false);
+  const [isOnline,setIsOnline]=useState(()=>navigator.onLine);
   const [prefetchedCredential, setPrefetchedCredential] = useState(null);
   const [sessionCredential, setSessionCredential] = useState(null);
   const [liveStarted, setLiveStarted] = useState(false);
@@ -843,11 +870,19 @@ export default function App() {
   const [savedRecords, setSavedRecords] = useState([]);
   const [activeRecordId, setActiveRecordId] = useState(null);
   const activeRecordIdRef = useRef(null);
+  const syncInFlightRef=useRef(false);
   const geminiVoiceRef = useRef(null);
   const t = copy[language.key];
   const selectedCourse = ranked.find(c => c.id === selected);
+  const demoMode = useMemo(() => new URLSearchParams(window.location.search).get('demo') === 'true', []);
 
   useEffect(()=>{ setSavedRecords(loadSavedProfiles(currentUser?.id)); },[currentUser]);
+  useEffect(()=>{
+    const markOnline=()=>setIsOnline(true), markOffline=()=>setIsOnline(false);
+    window.addEventListener('online',markOnline);
+    window.addEventListener('offline',markOffline);
+    return()=>{window.removeEventListener('online',markOnline);window.removeEventListener('offline',markOffline)};
+  },[]);
 
   const assignActiveRecord = useCallback(id => { activeRecordIdRef.current=id; setActiveRecordId(id); },[]);
   const persistProfile = useCallback((profileValue, extra = {}) => {
@@ -862,6 +897,38 @@ export default function App() {
     });
     return id;
   }, [assignActiveRecord, currentUser, language.key]);
+  const syncPendingApplication=useCallback(async()=>{
+    const queued=loadPendingApplication();
+    if(!queued||syncInFlightRef.current)return false;
+    const payload=withoutBeneficiaryName(queued.payload||{...queued.profile,accountId:queued.accountId||currentUser?.id,selectedCourse:queued.selected||'',language:queued.language||'en'});
+    if(!currentUser?.id||payload.accountId!==currentUser.id)return false;
+    syncInFlightRef.current=true;
+    setSyncing(true);
+    try {
+      const result=await postApplication(payload);
+      const latest=loadPendingApplication();
+      if(!latest||!queued.queuedAt||latest.queuedAt===queued.queuedAt)localStorage.removeItem(PENDING_APPLICATION_KEY);
+      setSavedRecords(previous=>{
+        const next=previous.map(record=>record.id===queued.recordId?{...record,status:'submitted',reference:result.reference,updatedAt:new Date().toISOString()}:record);
+        localStorage.setItem(savedProfilesKey(currentUser.id),JSON.stringify(next));
+        return next;
+      });
+      if(!queued.recordId||activeRecordIdRef.current===queued.recordId){setReference(result.reference);setSubmissionStatus('confirmed')}
+      return true;
+    } catch {
+      return false;
+    } finally {
+      syncInFlightRef.current=false;
+      setSyncing(false);
+    }
+  },[currentUser]);
+  useEffect(()=>{
+    if(!currentUser?.id)return;
+    syncPendingApplication();
+    const retry=()=>syncPendingApplication();
+    window.addEventListener('online',retry);
+    return()=>window.removeEventListener('online',retry);
+  },[currentUser,syncPendingApplication]);
   useEffect(()=>{
     if(!currentUser?.id || !['live','form'].includes(stage) || !Object.values(profile).some(Boolean))return;
     const timer=setTimeout(()=>persistProfile(profile,{status:'draft'}),350);
@@ -877,45 +944,87 @@ export default function App() {
     setStage('recommendations');
   }, [persistProfile, profile]);
   useEffect(() => {
+    if(!isOnline)return;
     let cancelled = false;
     fetch('/api/gemini/token', { method: 'POST' })
       .then(response => response.ok ? response.json() : null)
       .then(value => { if (!cancelled && value) setPrefetchedCredential({ ...value, fetchedAt: Date.now() }); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [isOnline]);
+  const continueWithOfflineForm=useCallback(()=>{
+    window.speechSynthesis?.cancel();
+    setLiveStarted(false);
+    setSessionCredential(null);
+    geminiVoiceRef.current=null;
+    setView('home');
+    setStage('form');
+  },[]);
   const startLive = useCallback(() => {
+    if(!isOnline){continueWithOfflineForm();return}
     setSessionCredential(prefetchedCredential);
     setLiveStarted(true);
     setStage('live');
-  }, [prefetchedCredential]);
+  }, [continueWithOfflineForm,isOnline,prefetchedCredential]);
   const registerGeminiVoice = useCallback(api => { geminiVoiceRef.current = api; }, []);
   const speakWithGemini = useCallback(text => geminiVoiceRef.current?.speak(text) || false, []);
+  const loadDemoProfile=useCallback(()=>{
+    window.speechSynthesis?.cancel();
+    setLiveStarted(false);
+    setSessionCredential(null);
+    geminiVoiceRef.current=null;
+    assignActiveRecord(null);
+    const scenario={...demoScenario};
+    setProfile(scenario);
+    setRanked([]);
+    setSelected('');
+    setDetailCourse(null);
+    setReference('');
+    setSubmissionStatus('idle');
+    setView('home');
+    persistProfile(scenario,{status:'profile'});
+    setStage('profile');
+  },[assignActiveRecord,persistProfile]);
   const submit = async () => {
     setSubmitting(true);
-    let ref;
+    const payload={...withoutBeneficiaryName(profile),accountId:currentUser.id,selectedCourse:selected,language:language.key};
     try {
-      const response = await fetch('/api/applications', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...profile, accountId: currentUser.id, selectedCourse: selected, language: language.key }) });
-      if (!response.ok) throw new Error('offline');
-      ref = (await response.json()).reference;
+      const result=await postApplication(payload);
+      setReference(result.reference);
+      setSubmissionStatus('confirmed');
+      persistProfile(profile,{status:'submitted',selected,reference:result.reference});
     } catch {
-      ref = `TNS-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
-      localStorage.setItem('skillgrade-last-application', JSON.stringify({ profile, selected, ref, submittedAt: new Date().toISOString() }));
+      const localReference=`SG-PENDING-${String(Date.now()).slice(-8)}`;
+      const recordId=persistProfile(profile,{status:'pending-sync',selected,reference:localReference});
+      localStorage.setItem(PENDING_APPLICATION_KEY,JSON.stringify({payload,profile,selected,language:language.key,accountId:currentUser.id,localReference,recordId,queuedAt:new Date().toISOString()}));
+      setReference(localReference);
+      setSubmissionStatus('pending-sync');
     }
-    setReference(ref); persistProfile(profile,{status:'submitted',selected,reference:ref}); setSubmitting(false); setStage('success');
+    setSubmitting(false); setStage('success');
   };
-  const openSavedProfile = record => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current=null; assignActiveRecord(record.id); setProfile(record.profile); const result=recommendPathways(record.profile,3); setRanked(result); setSelected(record.selected||result[0]?.id||''); setDetailCourse(null); setReference(record.reference||''); setView('home'); setStage(record.status==='draft'?'form':'profile'); };
-  const removeSavedProfile = id => setSavedRecords(previous => { const next=previous.filter(item=>item.id!==id); if(currentUser?.id)localStorage.setItem(savedProfilesKey(currentUser.id),JSON.stringify(next)); if(activeRecordId===id)assignActiveRecord(null); return next; });
-  const reset = () => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current = null; assignActiveRecord(null); setProfile({}); setRanked([]); setSelected(''); setDetailCourse(null); setReference(''); setStage('landing'); setView('home'); };
+  const openSavedProfile = record => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current=null; assignActiveRecord(record.id); setProfile(record.profile); const result=recommendPathways(record.profile,3); setRanked(result); setSelected(record.selected||result[0]?.id||''); setDetailCourse(null); setReference(record.reference||''); setSubmissionStatus(record.status==='pending-sync'?'pending-sync':record.status==='submitted'?'confirmed':'idle'); setView('home'); setStage(record.status==='draft'?'form':'profile'); };
+  const removeSavedProfile = id => setSavedRecords(previous => { const next=previous.filter(item=>item.id!==id); if(currentUser?.id)localStorage.setItem(savedProfilesKey(currentUser.id),JSON.stringify(next)); const queued=loadPendingApplication(); if(queued?.recordId===id)localStorage.removeItem(PENDING_APPLICATION_KEY); if(activeRecordId===id)assignActiveRecord(null); return next; });
+  const reset = () => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current = null; assignActiveRecord(null); setProfile({}); setRanked([]); setSelected(''); setDetailCourse(null); setReference(''); setSubmissionStatus('idle'); setStage('landing'); setView('home'); };
   const authenticate=user=>{sessionStorage.setItem(SESSION_KEY,JSON.stringify(user));setCurrentUser(user)};
   const logout=()=>{reset();sessionStorage.removeItem(SESSION_KEY);setSavedRecords([]);setCurrentUser(null)};
+  const resetDemo=()=>{
+    reset();
+    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(PENDING_APPLICATION_KEY);
+    const keysToRemove=Object.keys(localStorage).filter(key=>key.startsWith('skillgrade-beneficiaries-v2:'));
+    keysToRemove.forEach(key=>localStorage.removeItem(key));
+    setSavedRecords([]);
+    setCurrentUser(null);
+    window.location.href=window.location.pathname;
+  };
 
   if(!currentUser)return <div className="app-shell auth-shell"><div className="ambient ambient-one"/><div className="ambient ambient-two"/><div className="grid-bg"/><AuthScreen onAuthenticated={authenticate}/></div>;
 
   return <div className="app-shell">
     <div className="ambient ambient-one"/><div className="ambient ambient-two"/><div className="grid-bg"/>
-    {stage !== 'interview' && stage !== 'live' && <Header t={t} view={view} setView={setView} compact={stage !== 'landing'} user={currentUser} onLogout={logout}/>} 
-    {liveStarted && <div className={stage === 'live' ? 'live-session-visible' : 'live-session-hidden'}><GeminiLive language={language} profile={profile} setProfile={setProfile} onComplete={confirmProfile} onExit={() => { setLiveStarted(false); setStage('landing'); }} onFallback={() => { setLiveStarted(false); setStage('form'); }} credential={sessionCredential} active={stage === 'live'} onVoiceReady={registerGeminiVoice}/></div>}
+    {stage !== 'interview' && stage !== 'live' && <Header t={t} view={view} setView={setView} compact={stage !== 'landing'} user={currentUser} onLogout={logout} isOnline={isOnline}/>}
+    {!isOnline&&<section className="offline-connectivity-banner" role="alert"><WifiOff size={23}/><div><b>You are offline</b><span>Voice interview and live submission are unavailable. Your existing answers will be kept on this device.</span></div><button onClick={continueWithOfflineForm}>Continue with offline form<ArrowRight size={16}/></button></section>}
+    {liveStarted && <div className={stage === 'live' ? 'live-session-visible' : 'live-session-hidden'}><GeminiLive language={language} profile={profile} setProfile={setProfile} onComplete={confirmProfile} onExit={() => { setLiveStarted(false); setStage('landing'); }} onFallback={continueWithOfflineForm} credential={sessionCredential} active={stage === 'live'} onVoiceReady={registerGeminiVoice}/></div>}
     {view === 'dashboard' ? <CounsellorAdmin profile={profile} ranked={ranked} reference={reference} onBack={() => setView('home')}/> : <>
       {stage === 'landing' && <Landing language={language} setLanguage={setLanguage} onStart={startLive} onForm={() => setStage('form')} onSaved={() => setStage('saved')} onBack={logout} savedCount={savedRecords.length} t={t}/>} 
       {stage === 'saved' && <SavedProfiles records={savedRecords} onOpen={openSavedProfile} onBack={() => setStage('landing')} onRemove={removeSavedProfile}/>} 
@@ -926,8 +1035,9 @@ export default function App() {
       {stage === 'recommendations' && <OpportunityRecommendations profile={profile} ranked={ranked} onDetails={course => { setDetailCourse(course); setSelected(course.id); setStage('details'); }} onRoadmap={course => { setDetailCourse(course); setSelected(course.id); setStage('roadmap'); }} onBack={() => setStage('profile')} speak={speakWithGemini}/>} 
       {stage === 'details' && <OpportunityDetails course={detailCourse || selectedCourse} onBack={() => setStage('recommendations')} onRoadmap={course => { setDetailCourse(course); setStage('roadmap'); }} speak={speakWithGemini}/>} 
       {stage === 'roadmap' && <PersonalizedRoadmap profile={profile} course={detailCourse || selectedCourse} onBack={() => setStage('details')} onSubmit={submit} submitting={submitting} speak={speakWithGemini}/>} 
-      {stage === 'success' && <Success language={language} t={t} reference={reference} onReset={reset} onBack={() => setStage('roadmap')} geminiSpeak={speakWithGemini}/>} 
+      {stage === 'success' && <Success language={language} t={t} reference={reference} submissionStatus={submissionStatus} onRetrySync={syncPendingApplication} syncing={syncing} onReset={reset} onBack={() => setStage('roadmap')} geminiSpeak={speakWithGemini}/>}
     </>}
+    {demoMode&&<div className="demo-controls"><button className="load-demo-profile" onClick={loadDemoProfile}><Sparkles size={17}/>Load demo profile</button><button className="reset-demo-button" onClick={resetDemo}><RotateCcw size={17}/>Reset demo</button></div>}
     <footer><span><i/>VOICE SERVICES: GEMINI LIVE</span><span>Built for inclusive access · Tamil Nadu</span></footer>
   </div>;
 }

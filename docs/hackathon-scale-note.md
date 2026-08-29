@@ -28,3 +28,9 @@ Do not quote a cost per interview until provider pricing, average interview dura
 ## Catalog expansion
 
 The prototype catalog is deliberately small. Production ingestion should import and validate qualification packs from official NQR/NCVET/NSDC sources, version every eligibility rule, retain source provenance and run regression scenarios before publishing a catalog update.
+
+## Gemini token endpoint protection
+
+`POST /api/gemini/token` uses a per-IP sliding-window limit of **5 requests per minute and 20 requests per hour**. A normal interview needs one short-lived token, so these limits allow reasonable reconnects while reducing scripted token minting, unexpected Gemini cost and abuse. Rejected requests return HTTP `429`, a clear retry message and a `Retry-After` header.
+
+The hackathon implementation keeps counters in memory and intentionally adds no rate-limiting dependency. This is suitable for a single demo process, but counters are not shared across multiple workers and reset when the service restarts. A production deployment should move the same limits to a shared store or API gateway (for example Redis, a cloud rate limiter or an approved government gateway), use the correctly configured proxy/client IP, and monitor legitimate reconnect failures before changing the thresholds.

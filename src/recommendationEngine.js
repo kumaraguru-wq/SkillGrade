@@ -87,12 +87,13 @@ const isLocallyAvailable = (profile,qualification) => qualification.districts.in
 export function passesHardFilters(profile,qualification) {
   const eligibility = checkEligibility(profile,qualification);
   if (!eligibility.eligible) return {pass:false,reason:'eligibility',eligibility};
+  if (!districtLocations[profile.district]) return {pass:false,reason:'unsupported-district',eligibility};
   const qConcepts = qualificationConcepts(qualification);
   const interestConcepts = conceptsFromText(`${profile.interests||''} ${profile.preferredField||''}`);
   const skillConcepts = conceptsFromText(profile.skills), occupationConcepts = conceptsFromText(profile.currentOccupation);
   const primaryConcepts = unique([...interestConcepts,...skillConcepts,...occupationConcepts]);
   if (!primaryConcepts.length || !intersects(primaryConcepts,qConcepts)) return {pass:false,reason:'unrelated-sector',eligibility};
-  if (!qualification.preference.includes(profile.employmentPreference) && !qualification.preference.includes('both') && profile.employmentPreference !== 'both') return {pass:false,reason:'employment-preference',eligibility};
+  if (!qualification.preference.includes(profile.employmentPreference) && profile.employmentPreference !== 'both') return {pass:false,reason:'employment-preference',eligibility};
   if (!isMobile(profile) && !isLocallyAvailable(profile,qualification)) return {pass:false,reason:'mobility',eligibility};
   return {pass:true,eligibility,qConcepts,interestConcepts,skillConcepts,occupationConcepts};
 }
@@ -142,7 +143,7 @@ export function recommendPathways(rawProfile,limit=3) {
     const skillsDirect=directHits(skillText,[...qualification.skillTags,...qualification.occupationTags]);
     const occupationDirect=directHits(occupationText,[...qualification.occupationTags,...qualification.skillTags]);
     const interestRelated=intersects(gate.interestConcepts,gate.qConcepts), skillsRelated=intersects(gate.skillConcepts,gate.qConcepts), occupationRelated=intersects(gate.occupationConcepts,gate.qConcepts);
-    const experienceRelated=profile.yearsExperience>0&&(occupationRelated||skillsRelated), preferenceMatch=qualification.preference.includes(profile.employmentPreference)||qualification.preference.includes('both')||profile.employmentPreference==='both';
+    const experienceRelated=profile.yearsExperience>0&&(occupationRelated||skillsRelated), preferenceMatch=qualification.preference.includes(profile.employmentPreference)||profile.employmentPreference==='both';
     const local=isLocallyAvailable(profile,qualification), mobile=isMobile(profile);
     const sectorQualifications=orderedSectorQualifications(qualification.sector), sectorEntryLevel=sectorQualifications[0]?.nsqfLevel??qualification.nsqfLevel;
     const clearedNsqfLevel=inferredClearedNsqfLevel(profile,sectorQualifications);
