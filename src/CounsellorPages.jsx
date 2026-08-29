@@ -74,7 +74,33 @@ export function CareerRoadmap({ profile, course, onBack, onSubmit, submitting, s
   return <main className="content-page counsel-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18}/>Pathway details</button><div className="page-heading"><div><div className="eyebrow"><Route size={15}/>MY CAREER ROADMAP</div><h1>A practical route from skill to livelihood</h1><p>{course.name} · created from the confirmed profile</p></div><button className="listen-button" onClick={() => speak?.(steps.map((step,i) => `Step ${i+1}: ${step.title}. ${step.text}`).join('. '))}><Volume2 size={18}/>Listen to roadmap</button></div><div className="roadmap">{steps.map((step,i) => <article key={step.title}><span>{i+1}</span><div><small>STEP {i+1}</small><h3>{step.title}</h3><p>{step.text}</p></div></article>)}</div><button className="primary" disabled={submitting} onClick={onSubmit}>{submitting ? 'Saving roadmap…' : 'Save beneficiary roadmap'}<ArrowRight size={18}/></button></main>;
 }
 
+const demoAdminStats = {assessments:128,eligible:104,rpl:37,districts:6};
+
 export function CounsellorAdmin({ profile, ranked, reference, onBack }) {
-  const metrics = useMemo(() => ({assessments:128,eligible:104,rpl:37,districts:6,centres:trainingCentres.length,qualifications:qualifications.length,opportunities:opportunities.length}),[]);
-  return <main className="dashboard counsel-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18}/>Back to beneficiary view</button><div className="page-heading"><div><div className="eyebrow"><BarChart3 size={15}/>PROGRAMME VIEW</div><h1>PM-AJAY livelihood dashboard</h1><p>Prototype monitoring view for officials and counsellors.</p></div><span className="prototype-badge">Demo data</span></div><section className="stat-grid"><div><span>ASSESSMENTS</span><b>{metrics.assessments}</b><small>Beneficiaries profiled</small></div><div><span>ELIGIBLE MATCHES</span><b>{metrics.eligible}</b><small>Across pathways</small></div><div><span>RPL PATHWAYS</span><b>{metrics.rpl}</b><small>Experience recognised</small></div><div><span>DISTRICTS</span><b>{metrics.districts}</b><small>Tamil Nadu pilot</small></div></section><div className="dashboard-grid"><section className="dash-card"><h2>Catalog readiness</h2><p>{metrics.qualifications} qualifications · {metrics.centres} centres · {metrics.opportunities} demand signals</p><div className="engine-note"><Sparkles size={18}/><p>All records are marked unverified prototype data. Production import requires official validation.</p></div></section><section className="dash-card"><h2>Current beneficiary</h2><p><b>{profile.name || 'No active assessment'}</b></p><p>{profile.district} · {profile.currentOccupation}</p><p>{ranked[0] ? `Top pathway: ${ranked[0].name} (${ranked[0].score}%)` : 'No matching run yet'}</p><p>{reference ? `Roadmap reference: ${reference}` : 'Roadmap not saved'}</p></section><section className="dash-card scoring-card"><h2>Explainable ranking</h2>{ranked.map((x,i) => <div className="score-row" key={x.id}><span className="rank">0{i+1}</span><div><b>{x.name}</b><small>{x.pathwayType}</small><div className="score-bar"><i style={{width:`${x.score}%`}}/></div></div><strong>{x.score}</strong></div>)}</section></div></main>;
+  const [aggregateStats,setAggregateStats] = useState({status:'loading',metrics:null});
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch('/api/applications/stats',{signal:controller.signal})
+      .then(response => {
+        if(!response.ok) throw new Error(`Statistics request failed: ${response.status}`);
+        return response.json();
+      })
+      .then(data => {
+        const total=Number(data?.total), byDistrict=data?.byDistrict, byPathway=data?.byPathway;
+        if(!Number.isFinite(total)||total<0||!byDistrict||typeof byDistrict!=='object'||!byPathway||typeof byPathway!=='object') throw new Error('Invalid statistics response');
+        const eligible=Object.values(byPathway).reduce((sum,value)=>sum+(Number(value)||0),0);
+        const districts=Object.values(byDistrict).filter(value=>(Number(value)||0)>0).length;
+        setAggregateStats({status:'live',metrics:{...demoAdminStats,assessments:total,eligible,districts}});
+      })
+      .catch(error => {
+        if(error.name!=='AbortError') setAggregateStats({status:'fallback',metrics:demoAdminStats});
+      });
+    return()=>controller.abort();
+  },[]);
+  const metrics = useMemo(() => ({
+    ...(aggregateStats.metrics||{assessments:'…',eligible:'…',rpl:demoAdminStats.rpl,districts:'…'}),
+    centres:trainingCentres.length,qualifications:qualifications.length,opportunities:opportunities.length,
+  }),[aggregateStats]);
+  const statsLabel=aggregateStats.status==='live'?'Backend statistics':aggregateStats.status==='fallback'?'Offline demo data':'Loading statistics…';
+  return <main className="dashboard counsel-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18}/>Back to beneficiary view</button><div className="page-heading"><div><div className="eyebrow"><BarChart3 size={15}/>PROGRAMME VIEW</div><h1>PM-AJAY livelihood dashboard</h1><p>Prototype monitoring view for officials and counsellors.</p></div><span className="prototype-badge">{statsLabel}</span></div><section className="stat-grid"><div><span>ASSESSMENTS</span><b>{metrics.assessments}</b><small>Beneficiaries profiled</small></div><div><span>ELIGIBLE MATCHES</span><b>{metrics.eligible}</b><small>Submitted pathway selections</small></div><div><span>RPL PATHWAYS</span><b>{metrics.rpl}</b><small>Experience recognised · demo</small></div><div><span>DISTRICTS</span><b>{metrics.districts}</b><small>Districts with applications</small></div></section><div className="dashboard-grid"><section className="dash-card"><h2>Catalog readiness</h2><p>{metrics.qualifications} qualifications · {metrics.centres} centres · {metrics.opportunities} demand signals</p><div className="engine-note"><Sparkles size={18}/><p>All records are marked unverified prototype data. Production import requires official validation.</p></div></section><section className="dash-card"><h2>Current beneficiary</h2><p><b>{profile.name || 'No active assessment'}</b></p><p>{profile.district} · {profile.currentOccupation}</p><p>{ranked[0] ? `Top pathway: ${ranked[0].name} (${ranked[0].score}%)` : 'No matching run yet'}</p><p>{reference ? `Roadmap reference: ${reference}` : 'Roadmap not saved'}</p></section><section className="dash-card scoring-card"><h2>Explainable ranking</h2>{ranked.map((x,i) => <div className="score-row" key={x.id}><span className="rank">0{i+1}</span><div><b>{x.name}</b><small>{x.pathwayType}</small><div className="score-bar"><i style={{width:`${x.score}%`}}/></div></div><strong>{x.score}</strong></div>)}</section></div></main>;
 }

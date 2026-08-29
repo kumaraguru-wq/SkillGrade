@@ -6,7 +6,9 @@ import { supportedDistricts } from './location';
 
 const districtNames=supportedDistricts.map(item=>item.name);
 
-const REQUIRED_FIELDS = ['consent', 'name', 'age', 'district', 'education', 'currentOccupation', 'yearsExperience', 'skills', 'familyOccupation', 'interests', 'preferredField', 'employmentPreference', 'willingToRelocate', 'mobilityConstraints'];
+const REQUIRED_FIELDS = ['consent', 'age', 'district', 'education', 'currentOccupation', 'yearsExperience', 'skills', 'interests', 'preferredField', 'employmentPreference', 'willingToRelocate'];
+const OPTIONAL_FIELDS = ['name', 'familyOccupation', 'mobilityConstraints'];
+const COLLECTABLE_FIELDS = [...REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
 const languageNames = { en: 'English', hi: 'Hindi', ta: 'Tamil with natural Tanglish and English code-switching' };
 
@@ -46,7 +48,9 @@ function systemInstruction(language) {
 
 Conduct a natural spoken conversation in ${languageNames[language.key]}. In Tamil, understand and naturally use common Tanglish and English work words such as coding, computer, tailoring and business. Never sound like a questionnaire or announce field names.
 
-You are a livelihood counsellor, not a form filler. Learn the beneficiary's consent, full name, age, district (currently supported pilot districts: ${districtNames.join(', ')}), education, current occupation, years of experience, existing skills, family or traditional occupation, interests, preferred livelihood field, preference for a salaried job, self-employment or both, willingness to travel or relocate, and any mobility constraints.
+You are a livelihood counsellor, not a form filler. Collect the beneficiary's consent, age, district (currently supported pilot districts: ${districtNames.join(', ')}), education, current occupation, years of experience, existing skills, interests, preferred livelihood field, preference for a salaried job, self-employment or both, and willingness to travel or relocate.
+
+The beneficiary's name, family or traditional occupation, and mobility constraints are optional context. Save them if the beneficiary mentions them naturally, but do not explicitly ask for them and do not delay completion when they are absent.
 
 Conversation rules:
 - Begin with a short friendly welcome, explain that you will have a brief conversation, and ask for consent.
@@ -100,7 +104,7 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
       if (call.name === 'record_beneficiary_details') {
         const cleaned = {};
         for (const [key, value] of Object.entries(call.args || {})) {
-          if (REQUIRED_FIELDS.includes(key) && value !== undefined && value !== null) cleaned[key] = String(value).trim();
+          if (COLLECTABLE_FIELDS.includes(key) && value !== undefined && value !== null) cleaned[key] = String(value).trim();
         }
         const updated = { ...profileRef.current, ...cleaned };
         profileRef.current = updated;

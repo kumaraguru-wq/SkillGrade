@@ -85,6 +85,30 @@ function nearbyCentres(profile,qualification) {
 function nearbyJobs(profile,qualification) {
   return jobs.filter(job => job.sector===qualification.sector && (isMobile(profile)||job.district===profile.district)).map(job => ({...job,distanceKm:distanceKm(profile.latitude,profile.longitude,job.latitude,job.longitude),dataStatus:'Prototype/demo'})).sort((a,b)=>(a.distanceKm??9999)-(b.distanceKm??9999)).slice(0,4);
 }
+function orderedSectorQualifications(sector) {
+  return qualifications.filter(item=>item.sector===sector).slice().sort((a,b)=>a.nsqfLevel-b.nsqfLevel||a.name.localeCompare(b.name));
+}
+function inferredClearedNsqfLevel(profile,sectorQualifications) {
+  const explicitText=[profile.existingQualification,profile.qualification,profile.certification].filter(Boolean).join(' ');
+  const explicitMatch=explicitText.match(/nsqf\s*(?:level)?\s*[-:]?\s*(\d+)/i);
+  if(explicitMatch)return Number(explicitMatch[1]);
+  const entryLevel=sectorQualifications[0]?.nsqfLevel;
+  return entryLevel!==undefined&&(educationRank[profile.education]??0)>=educationRank.iti ? entryLevel : null;
+}
+function buildQualificationProgression(profile,qualification) {
+  const ordered=orderedSectorQualifications(qualification.sector);
+  const nextByLevel=[];
+  for(const item of ordered) {
+    if(item.nsqfLevel<=qualification.nsqfLevel||nextByLevel.some(next=>next.nsqfLevel===item.nsqfLevel))continue;
+    nextByLevel.push(item);
+  }
+  return [
+    profile.currentOccupation||'Current livelihood stage',
+    `${qualification.name} (NSQF Level ${qualification.nsqfLevel})`,
+    ...nextByLevel.map(item=>`${item.name} (NSQF Level ${item.nsqfLevel})`),
+    qualification.jobRoles[0],
+  ];
+}
 export function recommendPathways(rawProfile,limit=3) {
   const profile = buildBeneficiaryProfile(rawProfile), interestText = `${profile.interests||''} ${profile.preferredField||''}`, skillText=profile.skills||'', occupationText=profile.currentOccupation||'';
   return qualifications.flatMap(qualification => {
@@ -96,18 +120,26 @@ export function recommendPathways(rawProfile,limit=3) {
     const interestRelated=intersects(gate.interestConcepts,gate.qConcepts), skillsRelated=intersects(gate.skillConcepts,gate.qConcepts), occupationRelated=intersects(gate.occupationConcepts,gate.qConcepts);
     const experienceRelated=profile.yearsExperience>0&&(occupationRelated||skillsRelated), preferenceMatch=qualification.preference.includes(profile.employmentPreference)||qualification.preference.includes('both')||profile.employmentPreference==='both';
     const local=isLocallyAvailable(profile,qualification), mobile=isMobile(profile);
+    const sectorQualifications=orderedSectorQualifications(qualification.sector), sectorEntryLevel=sectorQualifications[0]?.nsqfLevel??qualification.nsqfLevel;
+    const clearedNsqfLevel=inferredClearedNsqfLevel(profile,sectorQualifications);
+    const entryDistance=Math.max(0,qualification.nsqfLevel-sectorEntryLevel);
+    const nsqfEntryFit=!experienceRelated?Math.max(0,8-entryDistance*3):0;
+    const nsqfNextLevelBoost=clearedNsqfLevel!==null&&qualification.nsqfLevel===clearedNsqfLevel+1?3:0;
     const breakdown={interestMatch:interestDirect.length?Math.min(25,18+interestDirect.length*3):interestRelated?15:0,experienceMatch:experienceRelated?(occupationDirect.length?20:16):0,
-      skillsMatch:skillsDirect.length?Math.min(25,18+skillsDirect.length*3):skillsRelated?15:0,eligibility:10,goalAlignment:preferenceMatch?10:0,mobilityLocation:local?10:mobile?8:0};
-    const score=Object.values(breakdown).reduce((sum,value)=>sum+value,0);
+      skillsMatch:skillsDirect.length?Math.min(25,18+skillsDirect.length*3):skillsRelated?15:0,eligibility:10,goalAlignment:preferenceMatch?10:0,mobilityLocation:local?10:mobile?8:0,
+      nsqfEntryFit,nsqfNextLevelBoost};
+    const score=Math.min(100,Object.values(breakdown).reduce((sum,value)=>sum+value,0));
     if (score<MIN_RECOMMENDATION_SCORE) return [];
     const pathwayType=experienceRelated&&profile.yearsExperience>=qualification.rplMinExperience?'Recognition of Prior Learning / advanced upskilling':experienceRelated?'Upskilling':'Beginner training';
     const knownSkills=unique([profile.skills,profile.currentOccupation].filter(Boolean)), skillGaps=qualification.skillsGained;
     const reasons=[interestRelated&&`Matches your stated interest in ${profile.interests||profile.preferredField}`,skillsRelated&&`Uses your existing skills: ${profile.skills}`,
       experienceRelated&&`Builds on ${profile.yearsExperience} years of relevant experience`,preferenceMatch&&`Matches your ${profile.employmentPreference==='job'?'wage-employment':profile.employmentPreference==='self'?'self-employment':'job or self-employment'} preference`,
+      !experienceRelated&&qualification.nsqfLevel===sectorEntryLevel&&`Provides the sector's lowest eligible NSQF entry point (Level ${sectorEntryLevel})`,
+      nsqfNextLevelBoost>0&&`Progresses one NSQF level above your existing qualification or education-based entry level`,
       local?`Training is represented in ${profile.district}`:mobile&&'Included because you can travel for work or training'].filter(Boolean);
-    const progression=[profile.currentOccupation||'Current livelihood stage',pathwayType,qualification.name,qualification.jobRoles[0],qualification.selfEmployment[0]||`Advanced ${qualification.sector} work`];
-    return [{...qualification,score,breakdown,eligibility:gate.eligibility,pathwayType,reasons,knownSkills,skillGaps,trainingCentres:nearbyCentres(profile,qualification),jobs:nearbyJobs(profile,qualification),opportunities:opportunities.filter(x=>x.sector===qualification.sector&&(mobile||x.district===profile.district)),selfEmploymentFit:profile.employmentPreference!=='job'?qualification.selfEmployment:[],progression}];
-  }).sort((a,b)=>b.score-a.score||b.breakdown.experienceMatch-a.breakdown.experienceMatch||b.breakdown.skillsMatch-a.breakdown.skillsMatch).slice(0,limit);
+    const progression=buildQualificationProgression(profile,qualification);
+    return [{...qualification,score,breakdown,eligibility:gate.eligibility,pathwayType,reasons,knownSkills,skillGaps,sectorEntryLevel,relevantExperienceYears:experienceRelated?profile.yearsExperience:0,trainingCentres:nearbyCentres(profile,qualification),jobs:nearbyJobs(profile,qualification),opportunities:opportunities.filter(x=>x.sector===qualification.sector&&(mobile||x.district===profile.district)),selfEmploymentFit:profile.employmentPreference!=='job'?qualification.selfEmployment:[],progression}];
+  }).sort((a,b)=>b.score-a.score||(a.relevantExperienceYears===0&&b.relevantExperienceYears===0&&a.sector===b.sector?a.nsqfLevel-b.nsqfLevel:0)||b.breakdown.experienceMatch-a.breakdown.experienceMatch||b.breakdown.skillsMatch-a.breakdown.skillsMatch).slice(0,limit);
 }
 
 export { qualifications,trainingCentres,opportunities,jobs,MIN_RECOMMENDATION_SCORE };
