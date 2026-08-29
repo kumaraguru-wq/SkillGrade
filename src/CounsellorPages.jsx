@@ -28,7 +28,8 @@ function Input({ meta, value, onChange }) {
 }
 
 export function AssessmentForm({ profile, onChange, onComplete, onBack }) {
-  const [draft,setDraft] = useState(profile);
+  const [draft,setDraft] = useState(() => ({...profile}));
+  useEffect(() => { setDraft({...profile}); }, [profile]);
   const update = (id,value) => { const next = {...draft,[id]:value}; setDraft(next); onChange(next); };
   const readyProfile = {...draft,consent:draft.consent||'yes'};
   const ready = INTERVIEW_REQUIRED_FIELDS.every(k => String(readyProfile[k] || '').trim());

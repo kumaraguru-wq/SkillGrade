@@ -10,6 +10,81 @@ const districtNames=supportedDistricts.map(item=>item.name);
 const OPTIONAL_FIELDS = ['familyOccupation', 'mobilityConstraints', 'skillProficiencyBand', 'existingQualification'];
 const COLLECTABLE_FIELDS = [...INTERVIEW_REQUIRED_FIELDS, ...OPTIONAL_FIELDS];
 
+const INTERVIEW_FIELD_NAMES = {
+  consent: 'consent',
+  name: 'full name',
+  age: 'age',
+  district: 'district',
+  education: 'education',
+  currentOccupation: 'current occupation',
+  yearsExperience: 'years of experience',
+  skills: 'existing skills',
+  interests: 'interests',
+  preferredField: 'preferred livelihood field',
+  employmentPreference: 'employment preference',
+  willingToRelocate: 'travel or relocation preference',
+};
+
+// Keep these as full, unambiguous replies so corrections such as "correct my age"
+// cannot accidentally complete the interview. Add regional variants here as needed.
+const AFFIRMATIVE_CONFIRMATIONS = [
+  'yes', 'yes correct', 'yes it is correct', 'yes that is correct', 'correct',
+  'that is correct', "that's right", 'that is right', 'everything is correct',
+  'all correct', 'all good', 'ok', 'okay', 'next', 'continue', 'proceed',
+  'no changes', 'there are no changes', 'nothing to change', 'no correction', 'looks good',
+  'haan', 'han', 'haan ji', 'ji haan', 'theek hai', 'thik hai', 'sahi hai',
+  'sab sahi hai', 'koi badlav nahi', 'aage badho',
+  'हां', 'हाँ', 'जी हां', 'जी हाँ', 'ठीक है', 'सही है', 'सब सही है', 'कोई बदलाव नहीं', 'आगे बढ़ें',
+  'sari', 'seri', 'ellam sari', 'ellam seri', 'aamam', 'ama', 'aduthu',
+  'thodargalam', 'maatrangal illai', 'thirutham illai',
+  'சரி', 'எல்லாம் சரி', 'ஆமாம்', 'ஆம்', 'சரியாக இருக்கிறது', 'அடுத்து', 'தொடரலாம்', 'மாற்றம் இல்லை', 'திருத்தம் இல்லை',
+];
+
+const SUMMARY_CONFIRMATION_MARKERS = [
+  'please confirm', 'is that correct', 'is this correct', 'everything correct',
+  'anything wrong', 'say everything is correct',
+  'kya yah sahi hai', 'kya ye sahi hai', 'sab sahi', 'koi galti',
+  'क्या यह सही है', 'क्या ये सही है', 'सब सही', 'कोई गलती',
+  'ellam sari', 'ellam seri', 'sariya', 'thavaru',
+  'எல்லாம் சரி', 'சரியாக இருக்கிறதா', 'சரியா', 'தவறு இருந்தால்',
+];
+
+function normalizedConfirmation(text) {
+  return String(text || '')
+    .toLocaleLowerCase()
+    .replace(/[’]/g, "'")
+    .replace(/[^\p{L}\p{N}'\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isAffirmativeConfirmation(text) {
+  const normalized = normalizedConfirmation(text);
+  return AFFIRMATIVE_CONFIRMATIONS.includes(normalized);
+}
+
+function isSummaryConfirmationRequest(text) {
+  const normalized = normalizedConfirmation(text);
+  return SUMMARY_CONFIRMATION_MARKERS.some(marker => normalized.includes(normalizedConfirmation(marker)));
+}
+
+function missingRequiredFields(profile) {
+  return INTERVIEW_REQUIRED_FIELDS.filter(field => !String(profile?.[field] || '').trim());
+}
+
+function resumeInstruction(profile) {
+  const missing = missingRequiredFields(profile);
+  const collected = INTERVIEW_REQUIRED_FIELDS.filter(field => String(profile?.[field] || '').trim());
+  if (!collected.length) return 'Start the beneficiary conversation now with your spoken welcome.';
+  if (!missing.length) {
+    const names = INTERVIEW_REQUIRED_FIELDS.map(field => INTERVIEW_FIELD_NAMES[field] || field).join(', ');
+    return `Resume the existing beneficiary conversation. All required details are already collected: ${names}. Do not restart the interview or re-ask anything. Speak the complete summary now and ask the beneficiary to confirm it's correct.`;
+  }
+  const missingNames = missing.map(field => INTERVIEW_FIELD_NAMES[field] || field).join(', ');
+  const collectedNames = collected.map(field => INTERVIEW_FIELD_NAMES[field] || field).join(', ');
+  return `Resume the existing beneficiary conversation. Already collected: ${collectedNames}. Missing required details: ${missingNames}. Do not restart the interview or re-ask collected details. Ask only for the missing details, one at a time, then speak the complete summary and ask for confirmation.`;
+}
+
 const languageNames = { en: 'English', hi: 'Hindi', ta: 'Tamil with natural Tanglish and English code-switching' };
 
 const declarations = [
@@ -71,7 +146,10 @@ Conversation rules:
 - Never invent a qualification, eligibility rule, job, training centre, salary, or recommendation. The deterministic application engine handles those after profile confirmation.
 - Understand corrections at any time and overwrite the relevant value using the tool.
 - Once everything is collected, speak one concise complete livelihood-profile summary. Ask the person to correct anything or say that everything is correct.
+- Treat clear acceptance phrases such as yes, correct, no changes, next, proceed, sari/seri, haan or theek hai as final confirmation.
+- If the beneficiary requests any correction, save it, speak the complete revised summary again, and ask for confirmation again. Never finish on the same turn as a correction.
 - Call complete_interview only after explicit final confirmation and all fields are complete.
+- After final confirmation, call complete_interview immediately. Do not say goodbye, say all the best, restart the interview, or ask another question.
 - Do not recommend courses during the interview. Keep replies concise and conversational.
 - Never mention tools, JSON, forms, APIs, Gemini, or internal processing.`;
 }
@@ -96,6 +174,11 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
   const playerRef = useRef(null);
   const mutedRef = useRef(false);
   const pendingCompletionRef = useRef(false);
+  const completionSourceRef = useRef('model');
+  const summaryTurnPendingRef = useRef(false);
+  const summarySpokenRef = useRef(false);
+  const correctionRecordedRef = useRef(false);
+  const completionTriggeredRef = useRef(false);
   const inputTurnRef = useRef('');
   const outputTurnRef = useRef('');
 
@@ -113,16 +196,22 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
         for (const [key, value] of Object.entries(call.args || {})) {
           if (COLLECTABLE_FIELDS.includes(key) && value !== undefined && value !== null) cleaned[key] = String(value).trim();
         }
+        const changedFields = Object.keys(cleaned).filter(key => String(profileRef.current[key] || '').trim() !== cleaned[key]);
         const updated = { ...profileRef.current, ...cleaned };
         profileRef.current = updated;
         setProfile(updated);
+        if (summarySpokenRef.current && changedFields.length) correctionRecordedRef.current = true;
+        if (!summarySpokenRef.current && !missingRequiredFields(updated).length) summaryTurnPendingRef.current = true;
         responses.push({ id: call.id, name: call.name, response: { result: 'Details saved', savedFields: Object.keys(cleaned) } });
       }
       if (call.name === 'complete_interview') {
-        const missing = INTERVIEW_REQUIRED_FIELDS.filter(field => !profileRef.current[field]);
+        const missing = missingRequiredFields(profileRef.current);
         if (missing.length) responses.push({ id: call.id, name: call.name, response: { result: 'Cannot finish yet', missingFields: missing } });
-        else {
+        else if (correctionRecordedRef.current) {
+          responses.push({ id: call.id, name: call.name, response: { result: 'Correction saved; speak the complete revised summary and ask for confirmation again' } });
+        } else {
           pendingCompletionRef.current = true;
+          completionSourceRef.current = 'model';
           responses.push({ id: call.id, name: call.name, response: { result: 'Application details confirmed' } });
         }
       }
@@ -139,6 +228,11 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
     async function connect() {
       setError('');
       setStatus('connecting');
+      pendingCompletionRef.current = false;
+      completionTriggeredRef.current = false;
+      summarySpokenRef.current = false;
+      summaryTurnPendingRef.current = !missingRequiredFields(profileRef.current).length;
+      correctionRecordedRef.current = false;
       try {
         const microphone = new LiveMicrophone((buffer, sampleRate) => {
           if (!mutedRef.current && sessionRef.current) {
@@ -202,10 +296,37 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
               }
               await handleToolCalls(message);
               if (message.serverContent?.turnComplete) {
+                const completedInput = inputTurnRef.current;
+                const completedOutput = outputTurnRef.current;
+                const wasWaitingForConfirmation = summarySpokenRef.current;
+                const allRequiredFieldsComplete = !missingRequiredFields(profileRef.current).length;
+                const correctionWasRecorded = correctionRecordedRef.current;
+                const receivedReplyAfterSummary = wasWaitingForConfirmation && completedInput.trim();
+
+                if (correctionWasRecorded) pendingCompletionRef.current = false;
+
+                if (!pendingCompletionRef.current && receivedReplyAfterSummary && !correctionWasRecorded && allRequiredFieldsComplete && isAffirmativeConfirmation(completedInput)) {
+                  pendingCompletionRef.current = true;
+                  completionSourceRef.current = 'safeguard';
+                }
+
+                if (receivedReplyAfterSummary && (!isAffirmativeConfirmation(completedInput) || correctionWasRecorded)) {
+                  summarySpokenRef.current = false;
+                  summaryTurnPendingRef.current = allRequiredFieldsComplete;
+                }
+
+                if (!summarySpokenRef.current && summaryTurnPendingRef.current && allRequiredFieldsComplete && isSummaryConfirmationRequest(completedOutput)) {
+                  summarySpokenRef.current = true;
+                  summaryTurnPendingRef.current = false;
+                }
+
+                correctionRecordedRef.current = false;
                 inputTurnRef.current = '';
                 outputTurnRef.current = '';
                 setStatus('listening');
-                if (pendingCompletionRef.current) {
+                if (pendingCompletionRef.current && !completionTriggeredRef.current) {
+                  completionTriggeredRef.current = true;
+                  if (completionSourceRef.current === 'safeguard') console.info('[SkillGrade] Completion safeguard triggered after affirmative profile confirmation.');
                   pendingCompletionRef.current = false;
                   setTimeout(() => onComplete(profileRef.current), 450);
                 }
@@ -235,7 +356,7 @@ export default function GeminiLive({ language, profile, setProfile, onComplete, 
           },
           stop: () => player.interrupt(),
         });
-        session.sendRealtimeInput({ text: 'Start the beneficiary conversation now with your spoken welcome.' });
+        session.sendRealtimeInput({ text: resumeInstruction(profileRef.current) });
       } catch (connectionError) {
         if (!cancelled) {
           setStatus('error');

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft, ArrowRight, BarChart3, BriefcaseBusiness, Check, CheckCircle2,
   ChevronRight, CircleUserRound, Clock3, GraduationCap, Headphones, Languages,
-  FolderOpen, LogOut, MapPin, Mic, MicOff, RefreshCcw, RotateCcw, ShieldCheck, Sparkles, Speaker,
+  FolderOpen, House, LogOut, MapPin, Mic, MicOff, RefreshCcw, RotateCcw, ShieldCheck, Sparkles, Speaker,
   SquarePen, Volume2, WifiOff, X,
 } from 'lucide-react';
 import { copy, courses, districtDetails, districts, languageOptions, questions } from './data';
@@ -27,6 +27,19 @@ function loadSavedProfiles(userId) {
 function loadPendingApplication() {
   try { return JSON.parse(localStorage.getItem(PENDING_APPLICATION_KEY)||'null'); }
   catch { return null; }
+}
+
+function normalizeSavedProfile(profileValue = {}) {
+  const normalized = {...profileValue};
+  if (!normalized.currentOccupation && normalized.occupation) normalized.currentOccupation = normalized.occupation;
+  if (!normalized.yearsExperience && normalized.experience !== undefined) normalized.yearsExperience = normalized.experience;
+  if (!normalized.skills && normalized.skill) normalized.skills = normalized.skill;
+  if (!normalized.interests && normalized.interest) normalized.interests = normalized.interest;
+  if (!normalized.interests && normalized.skill) normalized.interests = normalized.skill;
+  if (!normalized.preferredField) normalized.preferredField = normalized.interest || normalized.skill || normalized.currentOccupation || '';
+  if (!normalized.existingQualification) normalized.existingQualification = 'none';
+  if (!normalized.skillProficiencyBand && Number(normalized.yearsExperience || 0) === 0) normalized.skillProficiencyBand = 'assisted';
+  return normalized;
 }
 async function postApplication(payload) {
   const response=await fetch('/api/applications',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
@@ -825,7 +838,7 @@ function Review({ language, t, profile, selectedCourse, onBack, onSubmit, submit
   </main>;
 }
 
-function Success({ language, t, reference, submissionStatus, onRetrySync, syncing, onReset, onBack, geminiSpeak }) {
+function Success({ language, t, reference, submissionStatus, onRetrySync, syncing, onReset, onHome, onBack, geminiSpeak }) {
   const pending=submissionStatus==='pending-sync';
   useEffect(() => {
     const text = pending
@@ -834,7 +847,7 @@ function Success({ language, t, reference, submissionStatus, onRetrySync, syncin
     const timer = setTimeout(() => geminiSpeak?.(text), 400);
     return () => clearTimeout(timer);
   }, [geminiSpeak, language, pending, reference]);
-  return <main className={`success-page${pending?' pending-sync':''}`}><button className="back-link success-back" onClick={onBack}><ArrowLeft size={18}/>Back to roadmap</button><div className="success-art"><span/><span/><span/><div>{pending?<WifiOff size={42}/>:<Check size={42}/>}</div></div><p className={`eyebrow submission-badge${pending?' pending':''}`}>{pending?<><Clock3 size={15}/>PENDING SYNC</>:<><CheckCircle2 size={15}/>SUBMISSION RECEIVED</>}</p><h1>{pending?'Saved on this device':t.complete}</h1><p>{pending?"Your application is saved and will sync when you're back online":t.doneText}</p><div className="reference"><span>{pending?'Local tracking reference':t.ref}</span><b>{reference}</b><button onClick={() => navigator.clipboard?.writeText(reference)}><SquarePen size={16}/></button></div><div className="agency">{pending?<WifiOff size={22}/>:<ShieldCheck size={22}/>}<span><small>{pending?'NOT SENT TO THE SERVER YET':'SIMULATED SUBMISSION TO'}</small><b>{pending?'Waiting for a backend connection':'Tamil Nadu Skill Development Corporation'}</b></span></div><div className="success-actions">{pending&&<button className="retry-sync" disabled={syncing} onClick={onRetrySync}>{syncing?<RefreshCcw className="spin" size={18}/>:<RefreshCcw size={18}/>} {syncing?'Retrying…':'Retry sync'}</button>}<button className="primary" onClick={onReset}><RefreshCcw size={18}/>{t.newApp}</button></div></main>;
+  return <main className={`success-page${pending?' pending-sync':''}`}><button className="back-link success-back" onClick={onBack}><ArrowLeft size={18}/>Back to roadmap</button><div className="success-art"><span/><span/><span/><div>{pending?<WifiOff size={42}/>:<Check size={42}/>}</div></div><p className={`eyebrow submission-badge${pending?' pending':''}`}>{pending?<><Clock3 size={15}/>PENDING SYNC</>:<><CheckCircle2 size={15}/>SUBMISSION RECEIVED</>}</p><h1>{pending?'Saved on this device':t.complete}</h1><p>{pending?"Your application is saved and will sync when you're back online":t.doneText}</p><div className="reference"><span>{pending?'Local tracking reference':t.ref}</span><b>{reference}</b><button onClick={() => navigator.clipboard?.writeText(reference)}><SquarePen size={16}/></button></div><div className="agency">{pending?<WifiOff size={22}/>:<ShieldCheck size={22}/>}<span><small>{pending?'NOT SENT TO THE SERVER YET':'SIMULATED SUBMISSION TO'}</small><b>{pending?'Waiting for a backend connection':'Tamil Nadu Skill Development Corporation'}</b></span></div><div className="success-actions">{pending&&<button className="retry-sync" disabled={syncing} onClick={onRetrySync}>{syncing?<RefreshCcw className="spin" size={18}/>:<RefreshCcw size={18}/>} {syncing?'Retrying…':'Retry sync'}</button>}<button className="home-button" onClick={onHome}><House size={18}/>Home</button><button className="primary" onClick={onReset}><RefreshCcw size={18}/>{t.newApp}</button></div></main>;
 }
 
 function Dashboard({ t, profile, ranked, selectedCourse, reference }) {
@@ -1002,7 +1015,7 @@ export default function App() {
     }
     setSubmitting(false); setStage('success');
   };
-  const openSavedProfile = record => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current=null; assignActiveRecord(record.id); setProfile(record.profile); const result=recommendPathways(record.profile,3); setRanked(result); setSelected(record.selected||result[0]?.id||''); setDetailCourse(null); setReference(record.reference||''); setSubmissionStatus(record.status==='pending-sync'?'pending-sync':record.status==='submitted'?'confirmed':'idle'); setView('home'); setStage(record.status==='draft'?'form':'profile'); };
+  const openSavedProfile = record => { const restoredProfile=normalizeSavedProfile(record.profile); window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current=null; assignActiveRecord(record.id); setProfile(restoredProfile); const result=recommendPathways(restoredProfile,3); setRanked(result); setSelected(record.selected||result[0]?.id||''); setDetailCourse(null); setReference(record.reference||''); setSubmissionStatus(record.status==='pending-sync'?'pending-sync':record.status==='submitted'?'confirmed':'idle'); setView('home'); setStage(record.status==='draft'?'form':'profile'); };
   const removeSavedProfile = id => setSavedRecords(previous => { const next=previous.filter(item=>item.id!==id); if(currentUser?.id)localStorage.setItem(savedProfilesKey(currentUser.id),JSON.stringify(next)); const queued=loadPendingApplication(); if(queued?.recordId===id)localStorage.removeItem(PENDING_APPLICATION_KEY); if(activeRecordId===id)assignActiveRecord(null); return next; });
   const reset = () => { window.speechSynthesis?.cancel(); setLiveStarted(false); setSessionCredential(null); geminiVoiceRef.current = null; assignActiveRecord(null); setProfile({}); setRanked([]); setSelected(''); setDetailCourse(null); setReference(''); setSubmissionStatus('idle'); setStage('landing'); setView('home'); };
   const authenticate=user=>{sessionStorage.setItem(SESSION_KEY,JSON.stringify(user));setCurrentUser(user)};
@@ -1036,7 +1049,7 @@ export default function App() {
       {stage === 'recommendations' && <OpportunityRecommendations profile={profile} ranked={ranked} onDetails={course => { setDetailCourse(course); setSelected(course.id); setStage('details'); }} onRoadmap={course => { setDetailCourse(course); setSelected(course.id); setStage('roadmap'); }} onBack={() => setStage('profile')} speak={speakWithGemini}/>} 
       {stage === 'details' && <OpportunityDetails course={detailCourse || selectedCourse} onBack={() => setStage('recommendations')} onRoadmap={course => { setDetailCourse(course); setStage('roadmap'); }} speak={speakWithGemini}/>} 
       {stage === 'roadmap' && <PersonalizedRoadmap profile={profile} course={detailCourse || selectedCourse} onBack={() => setStage('details')} onSubmit={submit} submitting={submitting} speak={speakWithGemini}/>} 
-      {stage === 'success' && <Success language={language} t={t} reference={reference} submissionStatus={submissionStatus} onRetrySync={syncPendingApplication} syncing={syncing} onReset={reset} onBack={() => setStage('roadmap')} geminiSpeak={speakWithGemini}/>}
+      {stage === 'success' && <Success language={language} t={t} reference={reference} submissionStatus={submissionStatus} onRetrySync={syncPendingApplication} syncing={syncing} onReset={reset} onHome={reset} onBack={() => setStage('roadmap')} geminiSpeak={speakWithGemini}/>}
     </>}
     {demoMode&&<div className="demo-controls"><button className="load-demo-profile" onClick={loadDemoProfile}><Sparkles size={17}/>Load demo profile</button><button className="reset-demo-button" onClick={resetDemo}><RotateCcw size={17}/>Reset demo</button></div>}
     <footer><span><i/>VOICE SERVICES: GEMINI LIVE</span><span>Built for inclusive access · Tamil Nadu</span></footer>
